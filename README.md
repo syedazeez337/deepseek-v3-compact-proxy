@@ -32,7 +32,9 @@ mtp_weight=0.3 annealed to 0.1 at 67.6% of training (V3's own schedule)
 ```
 
 Best measured result: **292.54 validation perplexity** on WikiText-2 (`checkpoints/..._gateq_mtp_anneal.pt`,
-hosted on Hugging Face — see below).
+hosted on Hugging Face — see below). At this perplexity the model produces grammatically fluent but topically
+incoherent completions — see `experiments_GATE_S_READABLE_GENERATION.md` for a real example and honest
+interpretation of what "ready" would actually require.
 
 **What's next** (not yet started, three options on the table, see "Roadmap" below): Phase 2 (YaRN context
 extension), Phase 3 (SFT + GRPO-based RL post-training), or a flagged efficiency fix to `moe_v3.py`'s per-expert
@@ -44,6 +46,9 @@ dispatch loop.
 uv sync
 uv run pytest -q tests                          # full active suite (tests/, not archive/)
 uv run python v3_cli.py --real-corpus --steps 1954 --checkpoint-every 250 --eval-batches 32 --generate 32 --device cuda --enable-mtp --checkpoint checkpoints/my_run.pt
+
+# complete a prompt with a checkpoint (download one from the Hugging Face repo below first)
+uv run python complete.py "The cat sat on" --checkpoint checkpoints/<name>.pt --device cuda
 ```
 
 `v3_cli.py --help` lists every flag; each one was added by a specific gate below and defaults to that gate's
@@ -68,7 +73,8 @@ measured-best value. `--real-corpus` downloads and caches WikiText-2 on first us
 | `v3_training.py` | AdamW + warmup/cosine LR, FP16 autocast + GradScaler, full checkpoint/resume |
 | `data_v3.py` | WikiText-2 loader: train-only BPE tokenizer, SHA256-hashed provenance |
 | `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
-| `tests/` | Active test suite (63 tests as of Gate R) |
+| `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
+| `tests/` | Active test suite (65 tests as of Gate S) |
 | `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
 
 ## Gate history
@@ -93,6 +99,7 @@ measured-best value. `--real-corpus` downloads and caches WikiText-2 on first us
 | P | `route_scale` swept; V3's own value (2.5) measured worse than a smaller one (0.75) |
 | Q | MTP loss-weight annealing (V3's 0.3->0.1 schedule); confirmed beneficial |
 | R | MLA weight absorption, matched to V3's real inference code; also found and fixed a `v3_cli.py` VRAM bug that had produced a wrong conclusion in Gate O |
+| S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
 
 Full detail, measured numbers, and citations are in each `experiments_GATE_<letter>_*.md`.
 
