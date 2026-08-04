@@ -1,11 +1,32 @@
-# Checkpoints
+---
+license: apache-2.0
+language:
+- en
+library_name: pytorch
+pipeline_tag: text-generation
+datasets:
+- Salesforce/wikitext
+tags:
+- deepseek
+- deepseek-v3
+- mixture-of-experts
+- multi-head-latent-attention
+- multi-token-prediction
+- research
+---
 
-Trained checkpoints are hosted on Hugging Face Hub rather than in this repository, since GitHub blocks any file
-over 100MB and several of these (Configuration B, with optimizer state) are close to 2GB each.
+# DeepSeek-V3 Compact Proxy — Checkpoints
 
-Hub repo: https://huggingface.co/syedazeez/deepseek-v3-compact-proxy
+Trained checkpoints for [deepseek-v3-compact-proxy](https://github.com/syedazeez337/deepseek-v3-compact-proxy),
+a mechanism-faithful proxy for DeepSeek-V3's architecture (Multi-head Latent Attention, DeepSeekMoE, Multi-Token
+Prediction) — not a reproduction of the 671B model. Every checkpoint here corresponds to a specific, documented
+experiment ("gate") in that repository; each gate's specification, implementation, tests, measured results, and
+interpretation live in its `experiments_GATE_*.md` file.
 
-Every checkpoint below is also fully reproducible from the exact command recorded in its gate document — the
+Checkpoints are hosted here rather than in the code repository because GitHub blocks any file over 100MB, and
+several of these (Configuration B, with optimizer state) are close to 2GB each.
+
+Every checkpoint below is also fully reproducible from the exact command recorded in its gate document — this
 Hugging Face copy is a convenience, not the only record.
 
 ## Configuration A (~15M parameters, Gates I-N)

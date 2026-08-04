@@ -1,8 +1,9 @@
 [project]
 name = "compact-v3-proxy"
 version = "0.1.0"
-description = "Add your description here"
+description = "A mechanism-faithful compact proxy for DeepSeek-V3's architecture (MLA, DeepSeekMoE, MTP)"
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.13"
 dependencies = [
     "datasets>=2.19.1",

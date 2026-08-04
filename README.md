@@ -120,3 +120,10 @@ see `checkpoints/README.md` for the full list and the exact command to regenerat
 
 Developed on Windows 11, Python 3.13, PyTorch 2.13.0+cu130, RTX 3050 Laptop 6GB (Ampere, compute capability 8.6).
 `uv` manages the environment (`pyproject.toml` + `uv.lock`).
+
+## License
+
+Code is licensed under Apache 2.0 (see `LICENSE`). Trained checkpoints on Hugging Face Hub carry the same
+license. The WikiText-2 training data itself is separately licensed CC BY-SA 4.0 / GFDL as listed by the
+[Salesforce/wikitext dataset card](https://huggingface.co/datasets/Salesforce/wikitext) — unaffected by the
+code/weights license above.
