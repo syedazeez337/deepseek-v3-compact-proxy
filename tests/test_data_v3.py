@@ -2,7 +2,7 @@ import json
 
 import torch
 
-from data_v3 import DataConfig, PackedTokenProvider, _encode_documents, _pack, _train_tokenizer
+from data_v3 import DataConfig, PackedTokenProvider, _encode_documents, _pack, _train_tokenizer, load_tokenizer
 
 
 def test_tokenizer_and_packing_contract(tmp_path) -> None:
@@ -14,6 +14,16 @@ def test_tokenizer_and_packing_contract(tmp_path) -> None:
     assert path.exists()
     assert packed.numel() % 5 == 0
     assert tokenizer.token_to_id("[EOS]") in tokens.tolist()
+
+
+def test_tokenizer_decode_round_trips_to_readable_text(tmp_path) -> None:
+    texts = ["the cat sat on the mat", "the dog ran in the park"]
+    path = tmp_path / "tokenizer.json"
+    tokenizer = _train_tokenizer(texts, DataConfig(vocab_size=64), path)
+    ids = tokenizer.encode("the cat sat on the mat").ids
+    assert tokenizer.decode(ids) == "the cat sat on the mat"
+    reloaded = load_tokenizer(path)
+    assert reloaded.decode(ids) == "the cat sat on the mat"
 
 
 def test_packed_provider_shapes_and_resume() -> None:

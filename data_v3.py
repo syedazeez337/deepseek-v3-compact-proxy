@@ -9,6 +9,7 @@ from typing import Any
 import torch
 from datasets import load_dataset
 from tokenizers import Tokenizer
+from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.trainers import BpeTrainer
@@ -51,6 +52,7 @@ def _dataset_text(dataset) -> list[str]:
 def _train_tokenizer(texts: list[str], config: DataConfig, path: Path) -> Tokenizer:
     tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
     tokenizer.pre_tokenizer = ByteLevel(add_prefix_space=False)
+    tokenizer.decoder = ByteLevelDecoder()
     trainer = BpeTrainer(
         vocab_size=config.vocab_size,
         min_frequency=2,
@@ -159,7 +161,9 @@ def evaluate_provider(model, provider: PackedTokenProvider, batches: int, device
 
 
 def load_tokenizer(path: str | Path) -> Tokenizer:
-    return Tokenizer.from_file(str(path))
+    tokenizer = Tokenizer.from_file(str(path))
+    tokenizer.decoder = ByteLevelDecoder()
+    return tokenizer
 
 
 __all__ = ["DataConfig", "PackedCorpus", "PackedTokenProvider", "evaluate_provider", "load_tokenizer", "prepare_wikitext2"]
