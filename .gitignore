@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Local tool/editor config, not part of the project
+.claude/
+.commandcode/
+
+# Prior project attempt, superseded and excluded from the public repo (see README)
+archive/
+
+# Trained checkpoints are large binaries; hosted on Hugging Face Hub instead (see checkpoints/README.md)
+checkpoints/*.pt
+
+# Cached/regeneratable corpus data; provenance hashes are kept in data_v3/metadata.json
+data_v3/*.pt
+data_v3/tokenizer.json
