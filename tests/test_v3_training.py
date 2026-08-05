@@ -176,3 +176,23 @@ def test_checkpoint_write_is_atomic(tmp_path) -> None:
     assert not (tmp_path / "ckpt.pt.tmp").exists(), "temp file left behind after a failed write"
     reloaded = torch.load(path, map_location="cpu", weights_only=False)
     assert reloaded["step"] == 1
+
+
+def test_make_optimizer_falls_back_off_cuda() -> None:
+    """fused AdamW needs CUDA float params; a CPU model must still build an optimizer."""
+    model = CompactV3Model(model_config())
+    optimizer = make_optimizer(model, train_config())
+    assert isinstance(optimizer, torch.optim.AdamW)
+    assert optimizer.param_groups[0]["fused"] in (False, None)
+    # and it must actually be able to step
+    loss = model(torch.randint(0, 32, (1, 8)), torch.randint(0, 32, (1, 8)))[1]
+    loss.backward()
+    optimizer.step()
+
+
+def test_make_optimizer_uses_fused_on_cuda() -> None:
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA unavailable")
+    model = CompactV3Model(model_config()).cuda()
+    optimizer = make_optimizer(model, train_config())
+    assert optimizer.param_groups[0]["fused"] is True
