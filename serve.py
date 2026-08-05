@@ -100,7 +100,13 @@ class Engine:
         emitted: list[int] = []
         text_so_far = ""
 
-        yield {"event": "start", "prompt_tokens": len(prompt_ids), "max_new_tokens": max_new_tokens}
+        yield {
+            "event": "start",
+            "prompt_tokens": len(prompt_ids),
+            "max_new_tokens": max_new_tokens,
+            "context_length": self.config.context_length,
+            "checkpoint": self.checkpoint_name,
+        }
 
         for index in range(max_new_tokens):
             next_logits = logits[:, -1]
@@ -119,6 +125,10 @@ class Engine:
             yield {
                 "event": "token",
                 "text": delta,
+                # The id and its own decoded form let the client show real token
+                # boundaries, which is the point of a model playground.
+                "id": token_id,
+                "piece": self.tokenizer.decode([token_id]),
                 "index": index + 1,
                 "tokens_per_second": (index + 1) / elapsed if elapsed > 0 else 0.0,
             }

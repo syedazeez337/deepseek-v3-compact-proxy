@@ -7,130 +7,143 @@
 <style>
   :root {
     --bg: #f6f5f0;
-    --panel: #f0efe8;
+    --panel: #efeee7;
+    --deep: #e3e1d8;
     --ink: #141414;
-    --muted: #8c8c86;
-    --line: #e0ded4;
-    --accent: #5b5bd6;
-    --cont: #35328f;
+    --soft: #3a3a3a;
+    --muted: #616161;
+    --dim: #8c8c86;
+    --accent: #6a74ff;
+    --line: rgba(20,20,20,.15);
+    --line-strong: rgba(20,20,20,.3);
     --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #141416; --panel: #1c1c20; --ink: #ededea; --muted: #85857e;
-      --line: #2b2b31; --accent: #8b8bf0; --cont: #b6b4f2;
+      --bg: #141416; --panel: #1c1c20; --deep: #26262c; --ink: #ededea; --soft: #c9c9c4;
+      --muted: #9a9a94; --dim: #85857e; --accent: #8b92ff;
+      --line: rgba(255,255,255,.15); --line-strong: rgba(255,255,255,.3);
     }
   }
   :root[data-theme="light"] {
-    --bg: #f6f5f0; --panel: #f0efe8; --ink: #141414; --muted: #8c8c86;
-    --line: #e0ded4; --accent: #5b5bd6; --cont: #35328f;
+    --bg: #f6f5f0; --panel: #efeee7; --deep: #e3e1d8; --ink: #141414; --soft: #3a3a3a;
+    --muted: #616161; --dim: #8c8c86; --accent: #6a74ff;
+    --line: rgba(20,20,20,.15); --line-strong: rgba(20,20,20,.3);
   }
   :root[data-theme="dark"] {
-    --bg: #141416; --panel: #1c1c20; --ink: #ededea; --muted: #85857e;
-    --line: #2b2b31; --accent: #8b8bf0; --cont: #b6b4f2;
+    --bg: #141416; --panel: #1c1c20; --deep: #26262c; --ink: #ededea; --soft: #c9c9c4;
+    --muted: #9a9a94; --dim: #85857e; --accent: #8b92ff;
+    --line: rgba(255,255,255,.15); --line-strong: rgba(255,255,255,.3);
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 400 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased;
-  }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 400 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  .m { font-family: var(--mono); font-size: 11px; letter-spacing: .33px; color: var(--dim); }
 
-  /* metadata, labels and chrome are monospace; prose never is */
-  .m { font-family: var(--mono); font-size: 11px; letter-spacing: .33px; color: var(--muted); }
-
-  header {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 16px 24px; border-bottom: 1px solid var(--line);
-  }
-  .brand { font-weight: 650; font-size: 16px; letter-spacing: -.02em; margin-right: 6px; }
-  .pill {
-    font-family: var(--mono); font-size: 11.5px; letter-spacing: .2px;
-    border: 1px solid var(--line); background: transparent; color: var(--ink);
-    border-radius: 999px; padding: 6px 13px; cursor: pointer;
-    transition: background .15s, border-color .15s, color .15s;
-  }
-  .pill:hover { background: var(--panel); border-color: var(--muted); }
-  .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  header { display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+           padding: 15px 24px; border-bottom: .8px solid var(--line); }
+  .brand { font-weight: 650; font-size: 16px; letter-spacing: -.02em; margin-right: 5px; }
+  .pill { position: relative; font-family: var(--mono); font-size: 11.5px; letter-spacing: .2px;
+          border: .8px solid var(--line); background: transparent; color: var(--ink);
+          border-radius: 18px; padding: 6px 12px; cursor: pointer;
+          transition: background .15s, border-color .15s, color .15s; }
+  .pill:hover { background: rgba(20,20,20,.05); border-color: var(--line-strong); }
+  @media (prefers-color-scheme: dark) { .pill:hover { background: rgba(255,255,255,.06); } }
+  .pill[aria-pressed="true"], .pill[aria-expanded="true"] {
+    background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* a dot when settings differ from defaults, so an odd sample is explainable */
+  .pill .dot { position: absolute; top: 3px; right: 4px; width: 5px; height: 5px;
+               border-radius: 50%; background: var(--accent); display: none; }
+  .pill.changed .dot { display: block; }
+  .pill[aria-expanded="true"] .dot { background: #fff; }
   .spacer { flex: 1; }
 
-  main { max-width: 720px; margin: 0 auto; padding: 30px 24px 160px; }
+  main { max-width: 720px; margin: 0 auto; padding: 28px 24px 160px; }
 
-  .settings {
-    display: none; gap: 24px; flex-wrap: wrap;
-    border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 26px;
-  }
+  .settings { display: none; gap: 24px; flex-wrap: wrap;
+              border: .8px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 26px; }
   .settings.open { display: flex; }
   .field { min-width: 148px; flex: 1; }
-  .field label {
-    display: flex; justify-content: space-between; align-items: baseline;
-    font-family: var(--mono); font-size: 11.5px; letter-spacing: .2px; margin-bottom: 7px;
-  }
-  .field label span:last-child { color: var(--muted); }
-  .field .hint { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: var(--sans); }
+  .field label { display: flex; justify-content: space-between; align-items: baseline;
+                 font-family: var(--mono); font-size: 11.5px; letter-spacing: .2px; margin-bottom: 7px; }
+  .field label span:last-child { color: var(--dim); }
+  .field .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
 
-  .label {
-    font-family: var(--mono); font-size: 10.5px; letter-spacing: .9px;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
-  }
+  .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .9px;
+           text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
 
-  /* The model's continuation. Prose reads in sans; "raw" swaps to monospace so
-     tokenisation artefacts and whitespace are inspectable. */
-  .out { font-size: 15px; line-height: 1.62; min-height: 120px; }
+  /* collapsible token inspector, mirroring the reference's reasoning block:
+     the count is visible before you open it */
+  .inspect { margin-bottom: 14px; display: none; }
+  .inspect.show { display: block; }
+  .inspect-toggle { background: none; border: 0; padding: 0; cursor: pointer;
+                    font-family: var(--mono); font-size: 11px; letter-spacing: .33px; color: var(--dim); }
+  .inspect-toggle:hover { color: var(--ink); }
+  .inspect-body { display: none; margin-top: 10px; padding-left: 12px;
+                  border-left: .8px solid var(--line); }
+  .inspect.open .inspect-body { display: block; }
+  .tok { display: inline-block; font-family: var(--mono); font-size: 11.5px;
+         padding: 1px 3px; margin: 0 2px 3px 0; border-radius: 3px;
+         background: var(--deep); color: var(--soft); white-space: pre; }
+  .tok .ws { color: var(--dim); }
+
+  .out { font-size: 15px; line-height: 1.62; min-height: 110px; }
   .out p { margin: 0 0 14px; }
   .out p:last-child { margin-bottom: 0; }
   .out .p { font-weight: 600; }
-  .out .c { color: var(--cont); }
+  .out .c { color: var(--accent); }
   body.raw .out { font-family: var(--mono); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
   body.raw .out p { margin: 0; }
-  .empty { color: var(--muted); font-size: 14px; max-width: 60ch; }
-  .caret {
-    display: inline-block; width: 6px; height: 1em; vertical-align: text-bottom;
-    background: var(--accent); animation: blink 1.05s steps(2) infinite; margin-left: 1px;
-  }
+  .empty { color: var(--dim); font-size: 14px; max-width: 62ch; }
+  .caret { display: inline-block; width: 6px; height: 1em; vertical-align: text-bottom;
+           background: var(--accent); animation: blink 1.05s steps(2) infinite; margin-left: 1px; }
   @keyframes blink { 50% { opacity: 0; } }
 
-  .foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; min-height: 20px; }
-  .copy {
-    display: none; align-items: center; gap: 5px; background: none; border: 0; cursor: pointer;
-    font-family: var(--mono); font-size: 11px; letter-spacing: .33px; color: var(--muted); padding: 0;
-  }
+  /* pending pulse: prefill has real latency, a bare caret reads as "nothing happening" */
+  .pending { display: inline-flex; gap: 4px; align-items: center; height: 1em; }
+  .pending i { width: 5px; height: 5px; border-radius: 50%; background: var(--dim);
+               animation: pulse 1.2s ease-in-out infinite; }
+  .pending i:nth-child(2) { animation-delay: .15s; }
+  .pending i:nth-child(3) { animation-delay: .3s; }
+  @keyframes pulse { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+
+  .foot { display: flex; align-items: center; gap: 14px; margin-top: 16px; min-height: 20px; flex-wrap: wrap; }
+  .copy { display: none; align-items: center; gap: 5px; background: none; border: 0; cursor: pointer;
+          font-family: var(--mono); font-size: 11px; letter-spacing: .33px; color: var(--dim);
+          padding: 3px 6px; border-radius: 4px; transition: color .15s, background .15s; }
   .copy.show { display: inline-flex; }
-  .copy:hover { color: var(--ink); }
+  .copy:hover { color: var(--ink); background: rgba(20,20,20,.05); }
+  @media (prefers-color-scheme: dark) { .copy:hover { background: rgba(255,255,255,.06); } }
+  .copy.copied { color: var(--accent); }
   .stats.err { color: #c2410c; }
   @media (prefers-color-scheme: dark) { .stats.err { color: #fb923c; } }
 
   .examples { margin-top: 30px; display: flex; gap: 7px; flex-wrap: wrap; }
 
-  .composer { position: fixed; left: 0; right: 0; bottom: 0; padding: 16px 24px 24px;
+  .composer { position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 24px 22px;
               background: linear-gradient(to top, var(--bg) 74%, transparent); }
-  .composer-inner {
-    max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-    padding: 7px 7px 7px 17px; transition: border-color .15s, box-shadow .15s;
-  }
-  .composer-inner:focus-within {
-    border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
-  }
-  textarea {
-    flex: 1; border: 0; background: transparent; color: var(--ink); resize: none; outline: none;
-    font: 400 15px/1.55 var(--sans); padding: 9px 0; max-height: 170px; overflow-y: hidden;
-  }
-  textarea::placeholder { color: var(--muted); }
-  .send {
-    width: 34px; height: 34px; flex: 0 0 34px; border: 0; border-radius: 999px;
-    background: var(--ink); color: var(--bg); cursor: pointer; font-size: 15px;
-    display: grid; place-items: center; transition: opacity .15s;
-  }
-  .send:disabled { opacity: .3; cursor: default; }
+  .composer-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 8px;
+                    background: var(--panel); border: .8px solid var(--line); border-radius: 18px;
+                    padding: 7px 7px 7px 17px; transition: border-color .15s, box-shadow .15s; }
+  .composer-inner:focus-within { border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+  textarea { flex: 1; border: 0; background: transparent; color: var(--ink); resize: none; outline: none;
+             font: 400 15px/1.55 var(--sans); padding: 9px 0; max-height: 170px; overflow-y: hidden; }
+  textarea::placeholder { color: var(--dim); }
+  .send { width: 36px; height: 36px; flex: 0 0 36px; border: 0; border-radius: 50%;
+          background: var(--ink); color: var(--bg); cursor: pointer; font-size: 15px;
+          display: grid; place-items: center; transition: background .15s, border-radius .15s; }
+  .send.stop { background: var(--accent); color: #fff; border-radius: 9px; font-size: 12px; }
+  .ctx { margin-top: 8px; text-align: right; max-width: 720px; margin-left: auto; margin-right: auto; }
 </style>
 </head>
 <body>
 
 <header>
   <span class="brand">Compact V3</span>
-  <button class="pill" id="settingsBtn" aria-pressed="false">settings</button>
+  <button class="pill" id="settingsBtn" aria-expanded="false" aria-controls="settings">settings<span class="dot"></span></button>
   <button class="pill" id="sampleBtn" aria-pressed="true">sampling</button>
   <button class="pill" id="rawBtn" aria-pressed="false">raw</button>
   <button class="pill" id="clearBtn">clear</button>
@@ -163,13 +176,18 @@
     </div>
   </div>
 
-  <div class="label" id="outLabel">continuation</div>
+  <div class="inspect" id="inspect">
+    <button class="inspect-toggle" id="inspectToggle" aria-expanded="false">&rsaquo; tokens</button>
+    <div class="inspect-body" id="inspectBody"></div>
+  </div>
+
+  <div class="label">continuation</div>
   <div class="out" id="out"><div class="empty">A base language model, not a chat model. Give it the
     beginning of a sentence and it continues the text. It will not answer questions or follow
     instructions, because it has had no instruction tuning.</div></div>
 
   <div class="foot">
-    <button class="copy" id="copyBtn" title="copy prompt and continuation">⧉ copy</button>
+    <button class="copy" id="copyBtn" title="copy prompt and continuation">&#10697; copy</button>
     <span class="m stats" id="stats"></span>
   </div>
 
@@ -185,72 +203,139 @@
 <div class="composer">
   <div class="composer-inner">
     <textarea id="prompt" rows="1" placeholder="start some text and the model will continue it…"></textarea>
-    <button class="send" id="send" title="generate (enter)">→</button>
+    <button class="send" id="send" title="generate (enter)">&rarr;</button>
   </div>
+  <div class="m ctx" id="ctx"></div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const out = $('out'), stats = $('stats'), prompt = $('prompt'), send = $('send'), copyBtn = $('copyBtn');
-let streaming = false, doSample = true, lastText = '';
+const out = $('out'), stats = $('stats'), prompt = $('prompt'), send = $('send'),
+      copyBtn = $('copyBtn'), inspect = $('inspect'), inspectBody = $('inspectBody'),
+      inspectToggle = $('inspectToggle'), ctxEl = $('ctx');
 
+const DEFAULTS = { temp: 0.8, topk: 40, topp: 1, maxt: 96, sample: true, raw: false };
+let streaming = false, controller = null, lastText = '', tokens = [], contextLength = null;
+
+// ---- settings, persisted for the session ------------------------------------
+function readSettings() {
+  return { temp: +$('temp').value, topk: +$('topk').value, topp: +$('topp').value,
+           maxt: +$('maxt').value, sample: $('sampleBtn').getAttribute('aria-pressed') === 'true',
+           raw: document.body.classList.contains('raw') };
+}
+function markChanged() {
+  const s = readSettings();
+  const changed = Object.keys(DEFAULTS).some(k => s[k] !== DEFAULTS[k]);
+  $('settingsBtn').classList.toggle('changed', changed);
+  try { sessionStorage.setItem('cv3.settings', JSON.stringify(s)); } catch {}
+}
+function applySettings(s) {
+  for (const [k, id] of [['temp','temp'],['topk','topk'],['topp','topp'],['maxt','maxt']]) {
+    if (typeof s[k] === 'number') $(id).value = s[k];
+  }
+  if (typeof s.sample === 'boolean') {
+    $('sampleBtn').setAttribute('aria-pressed', s.sample);
+    $('sampleBtn').textContent = s.sample ? 'sampling' : 'greedy';
+  }
+  if (s.raw) { document.body.classList.add('raw'); $('rawBtn').setAttribute('aria-pressed', 'true'); }
+  syncLabels();
+}
+function syncLabels() {
+  $('tempV').textContent = (+$('temp').value).toFixed(2);
+  $('topkV').textContent = (+$('topk').value).toFixed(0);
+  $('toppV').textContent = (+$('topp').value).toFixed(2);
+  $('maxtV').textContent = (+$('maxt').value).toFixed(0);
+  markChanged();
+}
+try {
+  const saved = sessionStorage.getItem('cv3.settings');
+  if (saved) applySettings(JSON.parse(saved));
+} catch {}
+syncLabels();
+
+for (const id of ['temp','topk','topp','maxt']) $(id).addEventListener('input', syncLabels);
+
+// ---- chrome -----------------------------------------------------------------
 let theme = null;
 $('themeBtn').onclick = () => {
   theme = theme === null ? 'light' : theme === 'light' ? 'dark' : null;
   if (theme) document.documentElement.setAttribute('data-theme', theme);
   else document.documentElement.removeAttribute('data-theme');
 };
-$('settingsBtn').onclick = e =>
-  e.currentTarget.setAttribute('aria-pressed', $('settings').classList.toggle('open'));
-$('sampleBtn').onclick = e => {
-  doSample = !doSample;
-  e.currentTarget.setAttribute('aria-pressed', doSample);
-  e.currentTarget.textContent = doSample ? 'sampling' : 'greedy';
+$('settingsBtn').onclick = e => {
+  const open = $('settings').classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded', open);
 };
-$('rawBtn').onclick = e =>
+$('sampleBtn').onclick = e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  e.currentTarget.setAttribute('aria-pressed', on);
+  e.currentTarget.textContent = on ? 'sampling' : 'greedy';
+  markChanged();
+};
+$('rawBtn').onclick = e => {
   e.currentTarget.setAttribute('aria-pressed', document.body.classList.toggle('raw'));
+  markChanged();
+};
 $('clearBtn').onclick = () => {
   out.innerHTML = ''; stats.textContent = ''; stats.className = 'm stats';
-  copyBtn.classList.remove('show'); prompt.value = ''; prompt.focus(); resize();
+  copyBtn.classList.remove('show'); inspect.classList.remove('show');
+  tokens = []; prompt.value = ''; updateContext(); prompt.focus(); resize();
+};
+inspectToggle.onclick = () => {
+  const open = inspect.classList.toggle('open');
+  inspectToggle.setAttribute('aria-expanded', open);
+  inspectToggle.innerHTML = (open ? '&or; ' : '&rsaquo; ') + `tokens ~${tokens.length}`;
 };
 copyBtn.onclick = async () => {
   try {
     await navigator.clipboard.writeText(lastText);
-    copyBtn.textContent = '✓ copied';
-    setTimeout(() => { copyBtn.textContent = '⧉ copy'; }, 1400);
+    copyBtn.innerHTML = '&check; copied'; copyBtn.classList.add('copied');
+    setTimeout(() => { copyBtn.innerHTML = '&#10697; copy'; copyBtn.classList.remove('copied'); }, 1400);
   } catch { copyBtn.textContent = 'copy failed'; }
 };
-
-for (const [slider, label, digits] of [['temp','tempV',2],['topk','topkV',0],['topp','toppV',2],['maxt','maxtV',0]]) {
-  $(slider).addEventListener('input', e => { $(label).textContent = Number(e.target.value).toFixed(digits); });
-}
 $('examples').addEventListener('click', e => {
   if (e.target.tagName !== 'BUTTON') return;
-  prompt.value = e.target.textContent; resize(); prompt.focus();
+  prompt.value = e.target.textContent; resize(); updateContext(); prompt.focus();
 });
 
 function resize() {
   prompt.style.height = 'auto';
   const needed = prompt.scrollHeight;
   prompt.style.height = Math.min(needed, 170) + 'px';
-  // only show a scrollbar once the box has actually hit its ceiling
   prompt.style.overflowY = needed > 170 ? 'auto' : 'hidden';
 }
-prompt.addEventListener('input', resize);
+prompt.addEventListener('input', () => { resize(); updateContext(); });
 prompt.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); streaming ? abort() : generate(); }
 });
-send.onclick = generate;
+send.onclick = () => streaming ? abort() : generate();
+
+// Rough client-side estimate; the exact count arrives with the start event.
+function updateContext(promptTokens) {
+  if (!contextLength) { ctxEl.textContent = ''; return; }
+  const est = promptTokens ?? Math.ceil(prompt.value.length / 4);
+  const want = +$('maxt').value;
+  const room = Math.max(contextLength - est - 1, 0);
+  const capped = Math.min(want, room);
+  const exact = promptTokens !== undefined;
+  ctxEl.textContent = prompt.value.trim()
+    ? `${exact ? '' : '~'}${est} prompt + ${capped} new / ${contextLength} ctx`
+      + (capped < want ? `  (capped from ${want})` : '')
+    : '';
+}
+$('maxt').addEventListener('input', () => updateContext());
 
 fetch('/api/info').then(r => r.json()).then(i => {
+  contextLength = i.context_length;
   const ppl = i.validation_perplexity ? ` · ppl ${i.validation_perplexity.toFixed(1)}` : '';
   $('modelMeta').textContent =
-    `${(i.parameters/1e6).toFixed(0)}M · ${i.n_routed_experts} experts top-${i.top_k} · `
-    + `ctx ${i.context_length} · step ${i.step ?? '?'}${ppl} · ${i.device}`;
+    `${i.checkpoint} · ${(i.parameters/1e6).toFixed(0)}M · ${i.n_routed_experts} experts top-${i.top_k}`
+    + ` · ctx ${i.context_length} · step ${i.step ?? '?'}${ppl} · ${i.device}`;
+  updateContext();
 }).catch(() => { $('modelMeta').textContent = 'model info unavailable'; });
 
-// Render the model's newlines as real paragraph breaks rather than a single blob.
-function paint(promptText, contText, withCaret) {
+// ---- rendering ---------------------------------------------------------------
+function paint(promptText, contText, tail) {
   out.innerHTML = '';
   const blocks = (promptText + contText).split('\n');
   const promptLen = promptText.length;
@@ -264,84 +349,124 @@ function paint(promptText, contText, withCaret) {
     } else if (startsAt + block.length <= promptLen) {
       const s = document.createElement('span'); s.className = 'p'; s.textContent = block; p.append(s);
     } else {
-      const split = promptLen - startsAt;
-      const s = document.createElement('span'); s.className = 'p'; s.textContent = block.slice(0, split);
-      const c = document.createElement('span'); c.className = 'c'; c.textContent = block.slice(split);
+      const cut = promptLen - startsAt;
+      const s = document.createElement('span'); s.className = 'p'; s.textContent = block.slice(0, cut);
+      const c = document.createElement('span'); c.className = 'c'; c.textContent = block.slice(cut);
       p.append(s, c);
     }
-    if (withCaret && i === blocks.length - 1) {
-      const caret = document.createElement('span'); caret.className = 'caret'; p.append(caret);
-    }
+    if (tail && i === blocks.length - 1) p.append(tail());
     out.append(p);
   });
 }
+const caretEl = () => { const e = document.createElement('span'); e.className = 'caret'; return e; };
+const pendingEl = () => {
+  const e = document.createElement('span'); e.className = 'pending';
+  e.innerHTML = '<i></i><i></i><i></i>'; return e;
+};
+
+function renderTokens() {
+  inspectBody.innerHTML = '';
+  for (const t of tokens) {
+    const el = document.createElement('span');
+    el.className = 'tok';
+    el.title = `id ${t.id}`;
+    // make whitespace visible: it is exactly what "raw" mode exists to reveal
+    el.innerHTML = t.piece
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/ /g, '<span class="ws">·</span>')
+      .replace(/\n/g, '<span class="ws">\\n</span>');
+    inspectBody.append(el);
+  }
+  const open = inspect.classList.contains('open');
+  inspectToggle.innerHTML = (open ? '&or; ' : '&rsaquo; ') + `tokens ~${tokens.length}`;
+}
+
+function setStreaming(on) {
+  streaming = on;
+  send.classList.toggle('stop', on);
+  send.innerHTML = on ? '&#9632;' : '&rarr;';
+  send.title = on ? 'stop (enter)' : 'generate (enter)';
+}
+function abort() { if (controller) controller.abort(); }
 
 async function generate() {
-  if (streaming) return;
   const text = prompt.value;
   if (!text.trim()) { prompt.focus(); return; }
 
-  streaming = true; send.disabled = true;
-  stats.className = 'm stats'; stats.textContent = 'generating…';
+  setStreaming(true);
+  stats.className = 'm stats'; stats.textContent = '';
   copyBtn.classList.remove('show');
+  tokens = []; inspect.classList.remove('show');
 
   let cont = '';
-  paint(text, cont, true);
+  paint(text, cont, pendingEl);
 
-  const topk = Number($('topk').value);
+  controller = new AbortController();
+  const topk = +$('topk').value;
   let response;
   try {
     response = await fetch('/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
-        prompt: text,
-        max_new_tokens: Number($('maxt').value),
-        temperature: Number($('temp').value),
-        top_k: topk > 0 ? topk : null,
-        top_p: Number($('topp').value),
-        do_sample: doSample,
+        prompt: text, max_new_tokens: +$('maxt').value, temperature: +$('temp').value,
+        top_k: topk > 0 ? topk : null, top_p: +$('topp').value,
+        do_sample: $('sampleBtn').getAttribute('aria-pressed') === 'true',
       }),
     });
-  } catch {
-    paint(text, cont, false);
-    stats.className = 'm stats err';
-    stats.textContent = 'could not reach the server — is serve.py still running?';
-    streaming = false; send.disabled = false; return;
+  } catch (err) {
+    paint(text, cont, null);
+    if (err.name !== 'AbortError') {
+      stats.className = 'm stats err';
+      stats.textContent = 'could not reach the server — is serve.py still running?';
+    }
+    setStreaming(false); controller = null; return;
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '', finished = false;
+  let buffer = '', finished = false, stopped = false;
 
-  while (!finished) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop();
-    for (const part of parts) {
-      const line = part.trim();
-      if (!line.startsWith('data:')) continue;
-      let msg;
-      try { msg = JSON.parse(line.slice(5)); } catch { continue; }
-      if (msg.event === 'token') {
-        cont += msg.text;
-        paint(text, cont, true);
-        stats.textContent = `${msg.index} tok · ${msg.tokens_per_second.toFixed(1)} tok/s`;
-      } else if (msg.event === 'done') {
-        stats.textContent = `${msg.generated} tok · ${msg.seconds}s · ${msg.tokens_per_second} tok/s`;
-        finished = true;
-      } else if (msg.event === 'error') {
-        stats.className = 'm stats err'; stats.textContent = msg.message;
-        finished = true;
+  try {
+    while (!finished) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let msg;
+        try { msg = JSON.parse(line.slice(5)); } catch { continue; }
+        if (msg.event === 'start') {
+          updateContext(msg.prompt_tokens);
+        } else if (msg.event === 'token') {
+          cont += msg.text;
+          tokens.push({ id: msg.id, piece: msg.piece });
+          paint(text, cont, caretEl);
+          stats.textContent = `${msg.index} tok · ${msg.tokens_per_second.toFixed(1)} tok/s`;
+        } else if (msg.event === 'done') {
+          stats.textContent = `${msg.generated} tok · ${msg.seconds}s · ${msg.tokens_per_second} tok/s`;
+          finished = true;
+        } else if (msg.event === 'error') {
+          stats.className = 'm stats err'; stats.textContent = msg.message;
+          finished = true;
+        }
       }
     }
+  } catch (err) {
+    if (err.name === 'AbortError') stopped = true; else throw err;
   }
-  paint(text, cont, false);
+
+  paint(text, cont, null);
+  if (stopped) stats.textContent = `stopped · ${tokens.length} tok`;
+  if (tokens.length) { renderTokens(); inspect.classList.add('show'); }
   lastText = text + cont;
   if (cont) copyBtn.classList.add('show');
-  streaming = false; send.disabled = false; prompt.focus();
+  setStreaming(false); controller = null; prompt.focus();
 }
+
 resize(); prompt.focus();
 </script>
 </body>
