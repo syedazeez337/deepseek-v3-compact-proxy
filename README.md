@@ -17,9 +17,9 @@ gates below found that a value tuned at V3's scale (256 experts, huge batches) a
 scale, and the smaller value that measured better became the new default. Failures are recorded, not hidden:
 several gates below describe an approach that didn't work, or a bug that was found and fixed, alongside what did.
 
-## Current status (2026-08-04)
+## Current status (2026-08-05)
 
-Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate R. The model is at
+Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate T. The model is at
 **Configuration B**:
 
 ```text
@@ -36,9 +36,8 @@ hosted on Hugging Face — see below). At this perplexity the model produces gra
 incoherent completions — see `experiments/GATE_S_READABLE_GENERATION.md` for a real example and honest
 interpretation of what "ready" would actually require.
 
-**What's next** (not yet started, three options on the table, see "Roadmap" below): Phase 2 (YaRN context
-extension), Phase 3 (SFT + GRPO-based RL post-training), or a flagged efficiency fix to `src/compact_v3/moe.py`'s per-expert
-dispatch loop.
+**What's next** (see "Roadmap" below): Gate U, the WikiText-103 training run, then Phase 2 (YaRN context
+extension) and Phase 3 (SFT + GRPO-based RL post-training).
 
 ## Quickstart
 
@@ -77,7 +76,7 @@ The library lives in `src/compact_v3/`; the two CLI entry points stay at the rep
 | `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
 | `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
 | `experiments/` | One `GATE_<letter>_*.md` per gate: spec, method, measured numbers, interpretation |
-| `tests/` | Active test suite (66 tests as of Gate S) |
+| `tests/` | Active test suite (72 tests as of Gate T) |
 | `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
 
 Gate documents in `experiments/` refer to modules by the flat, pre-package names they had when each gate was
@@ -107,12 +106,18 @@ are a record of what was true at the time, not live links. The table above maps 
 | Q | MTP loss-weight annealing (V3's 0.3->0.1 schedule); confirmed beneficial |
 | R | MLA weight absorption, matched to V3's real inference code; also found and fixed a `v3_cli.py` VRAM bug that had produced a wrong conclusion in Gate O |
 | S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
+| T | Batched MoE dispatch: removed a per-expert device sync for +25.7% training and ~1.9x decode throughput, bit-exact. The textbook grouped-GEMM fix measured *worse* and was rejected (padding cost scales with routing imbalance) |
 
 Full detail, measured numbers, and citations are in each `experiments/GATE_<letter>_*.md`.
 
 ## Roadmap
 
-Three directions are open, not yet started:
+**Next up — Gate U: WikiText-103 training run.** `data_v3_103/` already holds 115,241,113 train tokens (50x
+WikiText-2), and Gate T cut the cost of using them. This attacks both findings from Gate S at once: the model is
+undertrained (no run has exceeded ~4M tokens) and domain-limited. One epoch is ~4.5 h at Gate T throughput;
+the Chinchilla-optimal budget for this model's ~36M *active* parameters is ~720M tokens, or ~28 h.
+
+Two directions remain open after that:
 
 1. **Phase 2 — YaRN context extension.** Two staged fine-tuning phases extending context, applied only to the
    decoupled RoPE key (matches this project's MLA split). V3's `s=40, α=1, β=32` need scaling down from its
@@ -121,9 +126,8 @@ Three directions are open, not yet started:
    SFT (with the same provenance diligence as WikiText-2), and a verifiable-reward toy task for RL sized to what
    a 155M-parameter model can actually do (real math/code reasoning is out of reach even at this scale) —
    R1-Zero's rule-based accuracy+format reward, not a learned reward model.
-3. **MoE dispatch efficiency.** `src/compact_v3/moe.py` dispatches routed experts in a Python loop; Gate O found this costs
-   real throughput as expert count grows even though active compute/token doesn't change. Should happen before
-   expert count is pushed past 32.
+
+The MoE dispatch efficiency item flagged in Gates O and R was resolved by Gate T.
 
 ## Checkpoints
 

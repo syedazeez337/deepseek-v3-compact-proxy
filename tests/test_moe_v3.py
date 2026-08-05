@@ -66,3 +66,63 @@ def test_top_k_two_is_not_top_one() -> None:
     _, routing, _ = moe(torch.randn(1, 4, 16))
     assert routing.selected_indices.size(-1) == 2
     assert routing.assignments == 8
+
+
+@pytest.mark.parametrize("top_k", [1, 2, 3])
+def test_sorted_dispatch_matches_reference(top_k: int) -> None:
+    """Gate T: batched dispatch must be exactly equivalent to the old loop."""
+    torch.manual_seed(3)
+    moe = DeepSeekMoE(make_config(top_k=top_k)).eval()
+    x = torch.randn(4, 7, 16)
+    fast, fast_routing, fast_loss = moe(x)
+    reference, reference_routing, reference_loss = moe.forward_reference(x)
+    assert torch.equal(fast, reference)
+    assert torch.equal(fast_loss, reference_loss)
+    assert torch.equal(fast_routing.selected_indices, reference_routing.selected_indices)
+    assert torch.equal(fast_routing.expert_load, reference_routing.expert_load)
+
+
+def test_sorted_dispatch_matches_reference_gradients() -> None:
+    """Equal outputs are not enough; the backward pass must match too."""
+    torch.manual_seed(5)
+    config = make_config(top_k=2)
+    x = torch.randn(3, 5, 16)
+
+    grads = []
+    for forward in ("forward", "forward_reference"):
+        torch.manual_seed(11)
+        moe = DeepSeekMoE(config)
+        output, _, balance_loss = getattr(moe, forward)(x)
+        (output.square().sum() + balance_loss).backward()
+        grads.append([p.grad.clone() for p in moe.parameters() if p.grad is not None])
+
+    assert len(grads[0]) == len(grads[1]) and len(grads[0]) > 0
+    for fast, reference in zip(*grads):
+        torch.testing.assert_close(fast, reference, rtol=0, atol=0)
+
+
+def test_sorted_dispatch_matches_reference_on_cuda() -> None:
+    """index_add_ on CUDA accumulates with atomics, so allow float tolerance."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA unavailable")
+    torch.manual_seed(13)
+    moe = DeepSeekMoE(make_config(top_k=2)).cuda().eval()
+    x = torch.randn(8, 32, 16, device="cuda")
+    fast, _, _ = moe(x)
+    reference, _, _ = moe.forward_reference(x)
+    torch.testing.assert_close(fast, reference, rtol=1e-5, atol=1e-6)
+
+
+def test_dispatch_handles_expert_receiving_no_tokens() -> None:
+    """A collapsed router leaves most experts empty; those must be skipped."""
+    torch.manual_seed(7)
+    moe = DeepSeekMoE(make_config(top_k=1)).eval()
+    with torch.no_grad():
+        moe.router.projection.weight.zero_()
+        moe.router.expert_bias.zero_()
+        moe.router.expert_bias[2] = 10.0  # force every token onto expert 2
+    x = torch.randn(2, 6, 16)
+    output, routing, _ = moe(x)
+    assert int(routing.expert_load[2]) == 12
+    assert int(routing.expert_load.sum()) == 12
+    assert torch.equal(output, moe.forward_reference(x)[0])
