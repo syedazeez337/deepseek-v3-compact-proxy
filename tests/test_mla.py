@@ -101,3 +101,43 @@ def test_cuda_forward_when_available(config: CompactV3Config) -> None:
     assert output.is_cuda and output.dtype == torch.float16
     assert isinstance(cache, MLACache)
     torch.cuda.synchronize()
+
+
+def test_fused_attention_matches_manual_reference(config: CompactV3Config) -> None:
+    """Gate V: SDPA over concatenated [content; rope] must equal the explicit form."""
+    torch.manual_seed(0)
+    mla = MultiHeadLatentAttention(config).eval()
+    x = torch.randn(2, 24, config.d_model)
+    with torch.no_grad():
+        fused = mla.reference(x)
+        manual = mla.reference_manual(x)
+    torch.testing.assert_close(fused, manual, rtol=1e-5, atol=1e-5)
+
+
+def test_fused_attention_matches_manual_gradients(config: CompactV3Config) -> None:
+    torch.manual_seed(1)
+    x = torch.randn(2, 20, config.d_model)
+
+    grads = []
+    for method in ("reference", "reference_manual"):
+        torch.manual_seed(9)
+        mla = MultiHeadLatentAttention(config)
+        getattr(mla, method)(x).square().sum().backward()
+        grads.append([p.grad.clone() for p in mla.parameters() if p.grad is not None])
+
+    assert len(grads[0]) == len(grads[1]) and len(grads[0]) > 0
+    for fused, manual in zip(*grads):
+        torch.testing.assert_close(fused, manual, rtol=1e-4, atol=1e-5)
+
+
+def test_fused_attention_is_causal(config: CompactV3Config) -> None:
+    """A later token must not change an earlier token's output."""
+    torch.manual_seed(2)
+    mla = MultiHeadLatentAttention(config).eval()
+    x = torch.randn(1, 16, config.d_model)
+    altered = x.clone()
+    altered[:, 12:] = torch.randn_like(altered[:, 12:])
+    with torch.no_grad():
+        a, b = mla.reference(x), mla.reference(altered)
+    torch.testing.assert_close(a[:, :12], b[:, :12], rtol=1e-5, atol=1e-5)
+    assert not torch.allclose(a[:, 12:], b[:, 12:], atol=1e-4)

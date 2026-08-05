@@ -70,6 +70,30 @@ class MultiHeadLatentAttention(nn.Module):
         return compressed, content, values, positional
 
     def reference(self, x: Tensor, positions: Tensor | None = None) -> Tensor:
+        """Fused causal attention over the concatenated content and RoPE parts.
+
+        Decoupled RoPE means the score is
+            q_content . k_content + q_rope . k_rope
+        which is exactly the dot product of [q_content; q_rope] with
+        [k_content; k_rope]. So a single fused kernel computes both terms, with
+        SDPA's default 1/sqrt(E) scale already equal to 1/sqrt(qk_head_dim).
+        Flash attention never materialises the [batch, heads, T, T] score
+        matrix, which at batch 8 / sequence 512 is both the slowest and the
+        largest part of the layer. See experiments/GATE_V_FUSED_ATTENTION.md.
+        `reference_manual` keeps the explicit form as the equivalence proof.
+        """
+        batch, sequence_length, _ = x.shape
+        positions = positions if positions is not None else torch.arange(sequence_length, device=x.device)
+        query_content, query_rope = self._query(x, positions)
+        _, key_content, values, key_rope = self._kv(x, positions)
+        key_rope = key_rope.expand(batch, self.config.n_heads, -1, -1)
+        query = torch.cat((query_content, query_rope), dim=-1)
+        key = torch.cat((key_content, key_rope), dim=-1)
+        attended = F.scaled_dot_product_attention(query, key, values, is_causal=True)
+        return self.output(attended.transpose(1, 2).contiguous().view(batch, sequence_length, -1))
+
+    def reference_manual(self, x: Tensor, positions: Tensor | None = None) -> Tensor:
+        """Pre-Gate-V explicit attention, retained as the equivalence reference."""
         batch, sequence_length, _ = x.shape
         positions = positions if positions is not None else torch.arange(sequence_length, device=x.device)
         query_content, query_rope = self._query(x, positions)
@@ -91,12 +115,9 @@ class MultiHeadLatentAttention(nn.Module):
         compressed, key_content, values, key_rope = self._kv(x, positions)
         cache = MLACache(compressed, key_rope.squeeze(1))
         key_rope_full = key_rope.expand(x.size(0), self.config.n_heads, -1, -1)
-        scores = torch.matmul(query_content, key_content.transpose(-2, -1))
-        scores = scores + torch.matmul(query_rope, key_rope_full.transpose(-2, -1))
-        scores = scores / (self.config.qk_head_dim**0.5)
-        causal = torch.triu(torch.ones(sequence_length, sequence_length, device=x.device, dtype=torch.bool), diagonal=1)
-        scores = scores.masked_fill(causal.view(1, 1, sequence_length, sequence_length), float("-inf"))
-        attended = torch.matmul(F.softmax(scores.float(), dim=-1).to(scores.dtype), values)
+        query = torch.cat((query_content, query_rope), dim=-1)
+        key = torch.cat((key_content, key_rope_full), dim=-1)
+        attended = F.scaled_dot_product_attention(query, key, values, is_causal=True)
         return self.output(attended.transpose(1, 2).contiguous().view(x.size(0), sequence_length, -1)), cache
 
     def decode_naive(self, x: Tensor, cache: MLACache) -> tuple[Tensor, MLACache]:
