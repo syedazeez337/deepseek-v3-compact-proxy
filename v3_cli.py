@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mtp-weight-final", type=float, default=0.1, help="MTP loss weight after the decay-phase fraction of training is reached; set equal to mtp_weight (0.3) to disable annealing")
     parser.add_argument("--mtp-decay-fraction", type=float, default=0.6757, help="Fraction of total_steps after which the MTP loss weight switches to mtp-weight-final")
     parser.add_argument("--warmup-steps", type=int, default=None, help="LR warmup steps; defaults to the pre-Gate-V behaviour of min(2, steps-1), which is far too short for long runs")
-    parser.add_argument("--batch-size", type=int, default=6)
+    parser.add_argument("--batch-size", type=int, default=7)
     parser.add_argument("--sequence-length", type=int, default=512)
     parser.add_argument("--generate", type=int, default=8)
     parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/compact_v3_synthetic.pt"))
