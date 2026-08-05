@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--route-scale", type=float, default=0.75, help="Scale applied to normalized routed-expert weights before mixing with the shared expert")
     parser.add_argument("--mtp-weight-final", type=float, default=0.1, help="MTP loss weight after the decay-phase fraction of training is reached; set equal to mtp_weight (0.3) to disable annealing")
     parser.add_argument("--mtp-decay-fraction", type=float, default=0.6757, help="Fraction of total_steps after which the MTP loss weight switches to mtp-weight-final")
+    parser.add_argument("--warmup-steps", type=int, default=None, help="LR warmup steps; defaults to the pre-Gate-V behaviour of min(2, steps-1), which is far too short for long runs")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--sequence-length", type=int, default=512)
     parser.add_argument("--generate", type=int, default=8)
@@ -127,7 +128,8 @@ def main() -> None:
     model_config.validate()
     if args.max_tokens:
         args.steps = max(1, (args.max_tokens + args.batch_size * args.sequence_length - 1) // (args.batch_size * args.sequence_length))
-    training_config = TrainingConfig(total_steps=args.steps, warmup_steps=min(2, args.steps - 1))
+    warmup_steps = min(2, args.steps - 1) if args.warmup_steps is None else min(args.warmup_steps, max(args.steps - 1, 0))
+    training_config = TrainingConfig(total_steps=args.steps, warmup_steps=warmup_steps)
     model = CompactV3Model(model_config).to(device)
     optimizer = make_optimizer(model, training_config)
     scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")

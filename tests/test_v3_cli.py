@@ -164,3 +164,10 @@ def test_complete_cli_produces_readable_text(tmp_path: Path) -> None:
     completed = subprocess.run(command, capture_output=True, text=True, check=True)
     assert '"completion"' in completed.stdout
     assert '"continuation_only"' in completed.stdout
+
+
+def test_warmup_steps_flag_defaults_and_override() -> None:
+    """Gate V: long runs need real warmup; the old hardcoded min(2, steps-1) is the default."""
+    parser = build_parser()
+    assert parser.parse_args([]).warmup_steps is None
+    assert parser.parse_args(["--warmup-steps", "2000"]).warmup_steps == 2000
