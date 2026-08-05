@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import torch
+from tokenizers import Tokenizer
 
 from compact_v3_model import CompactV3Model
 from data_v3 import load_tokenizer
@@ -27,6 +28,40 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def complete_text(
+    model: CompactV3Model,
+    tokenizer: Tokenizer,
+    prompt: str,
+    max_new_tokens: int = 32,
+    temperature: float = 1.0,
+    top_k: int | None = None,
+    do_sample: bool = False,
+    generator: torch.Generator | None = None,
+) -> dict:
+    was_training = model.training
+    device = next(model.parameters()).device
+    prompt_ids = tokenizer.encode(prompt).ids
+    prompt_tensor = torch.tensor([prompt_ids], device=device)
+    result = generate_cached(
+        model,
+        prompt_tensor,
+        max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        do_sample=do_sample,
+        generator=generator,
+    )
+    if was_training:
+        model.train()
+    generated_ids = result.tokens[0].tolist()
+    return {
+        "prompt": prompt,
+        "completion": tokenizer.decode(generated_ids),
+        "continuation_only": tokenizer.decode(generated_ids[len(prompt_ids):]),
+        "tokens_per_second": result.tokens_per_second,
+    }
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     args = build_parser().parse_args()
@@ -38,26 +73,17 @@ def main() -> None:
     model.load_state_dict(payload["model"])
     model.eval()
 
-    prompt_ids = tokenizer.encode(args.prompt).ids
-    prompt_tensor = torch.tensor([prompt_ids], device=device)
     generator = torch.Generator(device=device).manual_seed(args.seed) if args.do_sample else None
-    result = generate_cached(
-        model,
-        prompt_tensor,
-        args.max_new_tokens,
+    result = complete_text(
+        model, tokenizer, args.prompt,
+        max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_k=args.top_k,
         do_sample=args.do_sample,
         generator=generator,
     )
-    generated_ids = result.tokens[0].tolist()
-    print(json.dumps({
-        "prompt": args.prompt,
-        "completion": tokenizer.decode(generated_ids),
-        "continuation_only": tokenizer.decode(generated_ids[len(prompt_ids):]),
-        "checkpoint_step": payload["step"],
-        "tokens_per_second": result.tokens_per_second,
-    }, indent=2, ensure_ascii=False))
+    result["checkpoint_step"] = payload["step"]
+    print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

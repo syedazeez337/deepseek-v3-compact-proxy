@@ -9,7 +9,8 @@ import numpy as np
 import torch
 
 from compact_v3_model import CompactV3Model
-from data_v3 import DataConfig, PackedTokenProvider, evaluate_provider, prepare_wikitext2
+from complete import complete_text
+from data_v3 import DataConfig, PackedTokenProvider, evaluate_provider, load_tokenizer, prepare_wikitext2
 from v3_config import CompactV3Config
 from v3_generation import generate_cached
 from v3_training import (
@@ -43,8 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--generate", type=int, default=8)
     parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/compact_v3_synthetic.pt"))
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--real-corpus", action="store_true", help="Download/cache WikiText-2 and train on it")
-    parser.add_argument("--force-data", action="store_true", help="Rebuild the cached WikiText-2 tokenizer/tokens")
+    parser.add_argument("--real-corpus", action="store_true", help="Download/cache the configured WikiText corpus and train on it")
+    parser.add_argument("--force-data", action="store_true", help="Rebuild the cached tokenizer/tokens")
+    parser.add_argument("--dataset-config", type=str, default="wikitext-2-raw-v1", help="Salesforce/wikitext config name, e.g. wikitext-2-raw-v1 or wikitext-103-raw-v1")
+    parser.add_argument("--dataset-cache-dir", type=str, default="data_v3", help="Cache directory for the tokenizer/tokens; use a distinct dir per dataset-config to avoid overwriting another corpus's cache")
+    parser.add_argument("--sample-prompt", type=str, default="The", help="Fixed prompt decoded and logged at every periodic checkpoint (real-corpus only), so generation quality can be watched over training")
+    parser.add_argument("--sample-tokens", type=int, default=20, help="Number of tokens to generate for the periodic sample completion")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=1337)
     return parser
@@ -85,6 +90,8 @@ def main() -> None:
     corpus = None
     if args.real_corpus:
         data_config = DataConfig(
+            dataset_config=args.dataset_config,
+            cache_dir=args.dataset_cache_dir,
             context_length=args.sequence_length,
             batch_size=args.batch_size,
             seed=args.seed,
@@ -103,8 +110,10 @@ def main() -> None:
             mtp_decay_step_fraction=args.mtp_decay_fraction,
         )
         provider = PackedTokenProvider(corpus.train_tokens, args.batch_size, args.sequence_length, args.seed + 1)
+        tokenizer = load_tokenizer(corpus.tokenizer_path)
         print(json.dumps({"corpus": corpus.metadata}, indent=2))
     else:
+        tokenizer = None
         model_config = make_config(
             args.sequence_length,
             args.bias_update_rate,
@@ -151,6 +160,8 @@ def main() -> None:
         checkpoint_metrics = dict(metrics)
         checkpoint_metrics["tokens_seen"] = batches_drawn * args.batch_size * args.sequence_length
         checkpoint_metrics["routing"] = routing_report()
+        if tokenizer is not None:
+            checkpoint_metrics["sample"] = complete_text(model, tokenizer, args.sample_prompt, max_new_tokens=args.sample_tokens)
         if validation_provider is not None:
             validation = evaluate_provider(model, validation_provider, args.eval_batches, device)
             checkpoint_metrics.update({f"validation_{key}": value for key, value in validation.items()})
@@ -229,15 +240,23 @@ def main() -> None:
     del reload_optimizer, reload_scaler, payload
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    prompt = torch.randint(model_config.vocab_size, (1, min(8, model_config.context_length - args.generate)), device=device)
-    result = generate_cached(reload_model, prompt, args.generate)
+    if tokenizer is not None:
+        sample = complete_text(reload_model, tokenizer, args.sample_prompt, max_new_tokens=args.generate)
+        prompt_report: dict[str, object] = {"prompt": sample["prompt"], "completion": sample["completion"]}
+        generation_tokens_per_second = sample["tokens_per_second"]
+        generation_peak_allocated_mb = None
+    else:
+        prompt = torch.randint(model_config.vocab_size, (1, min(8, model_config.context_length - args.generate)), device=device)
+        result = generate_cached(reload_model, prompt, args.generate)
+        prompt_report = {"prompt": prompt.detach().cpu().tolist(), "generated_tokens": result.tokens.detach().cpu().tolist()}
+        generation_tokens_per_second = result.tokens_per_second
+        generation_peak_allocated_mb = result.peak_allocated_mb
     print(json.dumps({
         "environment": environment_metadata(device),
         "loaded_step": loaded_step,
-        "prompt": prompt.detach().cpu().tolist(),
-        "generated_tokens": result.tokens.detach().cpu().tolist(),
-        "generation_tokens_per_second": result.tokens_per_second,
-        "generation_peak_allocated_mb": result.peak_allocated_mb,
+        **prompt_report,
+        "generation_tokens_per_second": generation_tokens_per_second,
+        "generation_peak_allocated_mb": generation_peak_allocated_mb,
         "completed_step": completed_step,
     }, indent=2))
 

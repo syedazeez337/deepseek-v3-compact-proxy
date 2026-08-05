@@ -122,6 +122,15 @@ def test_mtp_annealing_flags_wire_into_config() -> None:
     assert config.mtp_decay_step_fraction == 0.5
 
 
+def test_dataset_config_flags_default_and_override() -> None:
+    default_args = build_parser().parse_args([])
+    assert default_args.dataset_config == "wikitext-2-raw-v1"
+    assert default_args.dataset_cache_dir == "data_v3"
+    overridden = build_parser().parse_args(["--dataset-config", "wikitext-103-raw-v1", "--dataset-cache-dir", "data_v3_103"])
+    assert overridden.dataset_config == "wikitext-103-raw-v1"
+    assert overridden.dataset_cache_dir == "data_v3_103"
+
+
 def test_real_corpus_cli_requires_no_synthetic_provider(tmp_path: Path) -> None:
     source = Path("v3_cli.py").read_text(encoding="utf-8")
     assert "PackedTokenProvider(corpus.train_tokens" in source
