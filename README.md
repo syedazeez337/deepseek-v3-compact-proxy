@@ -19,7 +19,7 @@ several gates below describe an approach that didn't work, or a bug that was fou
 
 ## Current status (2026-08-05)
 
-Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate T. The model is at
+Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate U. The model is at
 **Configuration B**:
 
 ```text
@@ -76,7 +76,7 @@ The library lives in `src/compact_v3/`; the two CLI entry points stay at the rep
 | `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
 | `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
 | `experiments/` | One `GATE_<letter>_*.md` per gate: spec, method, measured numbers, interpretation |
-| `tests/` | Active test suite (72 tests as of Gate T) |
+| `tests/` | Active test suite (81 tests as of Gate U) |
 | `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
 
 Gate documents in `experiments/` refer to modules by the flat, pre-package names they had when each gate was
@@ -107,15 +107,19 @@ are a record of what was true at the time, not live links. The table above maps 
 | R | MLA weight absorption, matched to V3's real inference code; also found and fixed a `v3_cli.py` VRAM bug that had produced a wrong conclusion in Gate O |
 | S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
 | T | Batched MoE dispatch: removed a per-expert device sync for +25.7% training and ~1.9x decode throughput, bit-exact. The textbook grouped-GEMM fix measured *worse* and was rejected (padding cost scales with routing imbalance) |
+| U | Pre-run audit. Found the MTP objective was degenerate (the head had learned the identity map, 100% top-1 on its own input), checkpoint writes were non-atomic, validation noise (14.7%) exceeded the effects Gates P/Q reported, and 8 of 15 checkpoints had been unloadable since Gate N. All fixed; context raised 256->512 for +40% throughput |
 
 Full detail, measured numbers, and citations are in each `experiments/GATE_<letter>_*.md`.
 
 ## Roadmap
 
-**Next up — Gate U: WikiText-103 training run.** `data_v3_103/` already holds 115,241,113 train tokens (50x
-WikiText-2), and Gate T cut the cost of using them. This attacks both findings from Gate S at once: the model is
-undertrained (no run has exceeded ~4M tokens) and domain-limited. One epoch is ~4.5 h at Gate T throughput;
-the Chinchilla-optimal budget for this model's ~36M *active* parameters is ~720M tokens, or ~28 h.
+**Next up — Gate V: WikiText-103 training run.** `data_v3_103/` already holds 115,241,113 train tokens (50x
+WikiText-2). This attacks both findings from Gate S at once: the model is undertrained (no run has exceeded ~4M
+tokens) and domain-limited. After Gates T and U, throughput is 11,501 tok/s at double the context, so one epoch
+is ~2.8 h and the Chinchilla-optimal budget for this model's ~36M *active* parameters (720M tokens) is ~17.4 h.
+
+**Then Gate W: MTP speculative decoding.** Gate U made this possible by fixing the MTP objective; V3 reports
+85-90% draft acceptance and 1.8x TPS from the same mechanism.
 
 Two directions remain open after that:
 

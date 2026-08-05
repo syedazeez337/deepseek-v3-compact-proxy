@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -183,21 +184,30 @@ def save_checkpoint(
 ) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "scaler": scaler.state_dict(),
-            "step": step,
-            "tokens_seen": tokens_seen,
-            "model_config": asdict(model.config),
-            "training_config": asdict(training_config),
-            "batch_provider": batch_provider.state_dict(),
-            "rng": capture_rng_state(),
-            "metrics": metrics,
-        },
-        path,
-    )
+    payload = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "scaler": scaler.state_dict(),
+        "step": step,
+        "tokens_seen": tokens_seen,
+        "model_config": asdict(model.config),
+        "training_config": asdict(training_config),
+        "batch_provider": batch_provider.state_dict(),
+        "rng": capture_rng_state(),
+        "metrics": metrics,
+    }
+    # Write to a sibling temp file and rename into place. torch.save straight to
+    # `path` leaves a truncated, unloadable checkpoint if the process dies
+    # mid-write, which on a multi-hour run means losing everything. os.replace
+    # is atomic on both POSIX and Windows when source and destination share a
+    # filesystem, hence the sibling rather than the system temp directory.
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        torch.save(payload, temporary)
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def load_checkpoint(
@@ -209,8 +219,14 @@ def load_checkpoint(
     device: torch.device,
 ) -> dict[str, Any]:
     payload = torch.load(path, map_location=device, weights_only=False)
-    if payload["model_config"] != asdict(model.config):
-        raise ValueError("checkpoint model configuration does not match")
+    stored = payload["model_config"]
+    current = asdict(model.config)
+    # Compare only the fields this checkpoint actually recorded. Fields added by
+    # later gates are absent from older checkpoints, and demanding exact dict
+    # equality would reject them for having been saved before the field existed.
+    mismatched = {key: (value, current.get(key)) for key, value in stored.items() if current.get(key) != value}
+    if mismatched:
+        raise ValueError(f"checkpoint model configuration does not match: {mismatched}")
     model.load_state_dict(payload["model"])
     optimizer.load_state_dict(payload["optimizer"])
     scaler.load_state_dict(payload["scaler"])

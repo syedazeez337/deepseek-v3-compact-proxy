@@ -142,9 +142,62 @@ class PackedTokenProvider:
         self.batches_drawn = state["batches_drawn"]
 
 
+def evaluate_tokens(
+    model,
+    tokens: torch.Tensor,
+    batch_size: int,
+    context_length: int,
+    device: torch.device,
+    max_batches: int | None = None,
+) -> dict[str, float]:
+    """Deterministic evaluation over fixed, non-overlapping windows.
+
+    `PackedTokenProvider` draws random windows with replacement and advances its
+    generator, so repeated evaluations of one unchanged model disagree: four
+    consecutive runs measured perplexity 278.20, 295.46, 318.99, 279.34, a 14.7%
+    spread that is pure sampling noise. That is larger than the differences
+    several gates were drawing conclusions from. This walks the split in order
+    instead, so the number depends only on the weights.
+    """
+    stride = context_length + 1
+    usable = tokens.numel() // stride
+    if usable < 1:
+        raise ValueError("not enough validation tokens for one window")
+    windows = tokens[: usable * stride].reshape(usable, stride)
+
+    was_training = model.training
+    model.eval()
+    total_main = 0.0
+    total_combined = 0.0
+    counted = 0
+    with torch.inference_mode():
+        for start in range(0, usable, batch_size):
+            if max_batches is not None and counted >= max_batches:
+                break
+            chunk = windows[start : start + batch_size]
+            if chunk.size(0) == 0:
+                break
+            batch = chunk.to(device)
+            inputs, targets = batch[:, :-1], batch[:, 1:]
+            _, loss, diagnostics = model(inputs, targets)
+            combined = model.mtp.combined_loss(loss, diagnostics["mtp"])
+            total_main += float(loss)
+            total_combined += float(combined)
+            counted += 1
+    if was_training:
+        model.train()
+    return {
+        "main_loss": total_main / counted,
+        "combined_loss": total_combined / counted,
+        "batches": counted,
+        "windows": min(usable, counted * batch_size),
+    }
+
+
 def evaluate_provider(model, provider: PackedTokenProvider, batches: int, device: torch.device) -> dict[str, float]:
     if batches < 1:
         raise ValueError("batches must be positive")
+    was_training = model.training
     model.eval()
     losses = []
     with torch.inference_mode():
@@ -153,7 +206,8 @@ def evaluate_provider(model, provider: PackedTokenProvider, batches: int, device
             _, loss, diagnostics = model(inputs, targets)
             combined = model.mtp.combined_loss(loss, diagnostics["mtp"])
             losses.append({"main_loss": float(loss), "combined_loss": float(combined)})
-    model.train()
+    if was_training:
+        model.train()
     return {
         "main_loss": sum(item["main_loss"] for item in losses) / len(losses),
         "combined_loss": sum(item["combined_loss"] for item in losses) / len(losses),
@@ -166,4 +220,4 @@ def load_tokenizer(path: str | Path) -> Tokenizer:
     return tokenizer
 
 
-__all__ = ["DataConfig", "PackedCorpus", "PackedTokenProvider", "evaluate_provider", "load_tokenizer", "prepare_wikitext2"]
+__all__ = ["DataConfig", "PackedCorpus", "PackedTokenProvider", "evaluate_provider", "evaluate_tokens", "load_tokenizer", "prepare_wikitext2"]

@@ -155,3 +155,47 @@ def test_parameter_report_is_stable() -> None:
     first = CompactV3Model(c).parameter_report()
     second = CompactV3Model(c).parameter_report()
     assert first == second
+
+
+def test_config_from_checkpoint_applies_pre_gate_defaults() -> None:
+    """Gate U: a checkpoint saved before a field existed must not get today's default.
+
+    Gates I-M recorded no n_dense_layers. Rebuilding with the current default
+    (1) makes block 0 dense against stored MoE weights, so those checkpoints
+    stopped loading entirely from Gate N onward.
+    """
+    from compact_v3.config import config_from_checkpoint
+
+    legacy = {
+        "vocab_size": 32000, "context_length": 256, "n_layer": 4, "d_model": 256,
+        "n_heads": 8, "q_lora_rank": 64, "kv_lora_rank": 64, "qk_nope_head_dim": 32,
+        "qk_rope_head_dim": 16, "v_head_dim": 32, "rope_base": 10000.0,
+        "rms_norm_eps": 1e-6, "use_moe": True, "n_routed_experts": 4,
+        "n_shared_experts": 1, "top_k": 2, "expert_hidden_dim": 384,
+        "route_scale": 1.0, "router_bias_update_rate": 1e-4,
+        "sequence_balance_coefficient": 1e-4, "mtp_depth": 1, "mtp_weight": 0.3,
+    }
+    config = config_from_checkpoint(legacy)
+    assert config.n_dense_layers == 0, "pre-Gate-N checkpoints had every layer as MoE"
+    assert config.mtp_weight_final == config.mtp_weight, "annealing did not exist pre-Gate-Q"
+    assert config.mtp_decay_step_fraction == 1.0, "a fraction of 1.0 never fires the switch"
+    assert config.context_length == 256 and config.n_routed_experts == 4
+
+
+def test_config_from_checkpoint_preserves_recorded_values() -> None:
+    from dataclasses import asdict
+
+    from compact_v3.config import CompactV3Config, config_from_checkpoint
+
+    original = CompactV3Config(n_dense_layers=1, mtp_weight_final=0.1, mtp_decay_step_fraction=0.5)
+    assert config_from_checkpoint(asdict(original)) == original
+
+
+def test_config_from_checkpoint_ignores_unknown_fields() -> None:
+    from dataclasses import asdict
+
+    from compact_v3.config import CompactV3Config, config_from_checkpoint
+
+    stored = asdict(CompactV3Config())
+    stored["some_field_from_the_future"] = 123
+    assert config_from_checkpoint(stored) == CompactV3Config()

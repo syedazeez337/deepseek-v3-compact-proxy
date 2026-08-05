@@ -2,7 +2,13 @@ import pytest
 import torch
 
 from compact_v3.model import CompactV3Model
-from compact_v3.mtp import MTPObjective, align_hidden_states, make_future_targets, mtp_weight_schedule
+from compact_v3.mtp import (
+    MTPObjective,
+    align_hidden_states,
+    make_future_targets,
+    make_mtp_input_tokens,
+    mtp_weight_schedule,
+)
 from compact_v3.config import CompactV3Config
 
 
@@ -32,6 +38,17 @@ def test_future_target_alignment() -> None:
     hidden = torch.randn(1, 10, 8)
     assert torch.equal(make_future_targets(tokens), tokens[:, 2:])
     assert align_hidden_states(hidden, horizon=2).shape == (1, 8, 8)
+
+
+def test_mtp_input_token_is_one_step_before_target() -> None:
+    """Gate U: the module must never be handed the token it is scored against."""
+    tokens = torch.arange(10).view(1, 10)
+    inputs = make_mtp_input_tokens(tokens, horizon=2)
+    targets = make_future_targets(tokens, horizon=2)
+    assert inputs.shape == targets.shape
+    assert torch.equal(inputs, tokens[:, 1:-1])
+    assert torch.equal(targets, inputs + 1)
+    assert not torch.equal(inputs, targets)
 
 
 def test_mtp_has_sequential_refinement_and_separate_loss() -> None:
@@ -87,7 +104,54 @@ def test_mtp_and_shared_output_receive_gradients() -> None:
 def test_mtp_direct_shape_validation() -> None:
     model = CompactV3Model(small_config())
     with pytest.raises(ValueError):
-        model.mtp(torch.randn(1, 5, 32), torch.randint(64, (1, 4)))
+        model.mtp(torch.randn(1, 5, 32), torch.randint(64, (1, 5)), torch.randint(64, (1, 4)))
+    with pytest.raises(ValueError):
+        model.mtp(torch.randn(1, 5, 32), torch.randint(64, (1, 4)), torch.randint(64, (1, 5)))
+
+
+def test_model_never_feeds_the_target_token_to_mtp() -> None:
+    """Gate U regression, stated directly: input tokens must not be the targets.
+
+    The bug was in this wiring, not in the module. `model.forward` passed
+    token_ids[:, 2:] as both the embedding input and the target, so the module
+    could read the answer off its own input through the tied output head.
+    """
+    model = CompactV3Model(small_config())
+    tokens = torch.randint(64, (2, 12))
+    seen = {}
+    original = model.mtp.forward
+
+    def spy(hidden_states, input_tokens=None, future_targets=None):
+        seen["inputs"] = input_tokens
+        seen["targets"] = future_targets
+        return original(hidden_states, input_tokens, future_targets)
+
+    model.mtp.forward = spy
+    model(tokens, tokens)
+
+    assert seen["inputs"] is not None and seen["targets"] is not None
+    assert seen["inputs"].shape == seen["targets"].shape
+    assert not torch.equal(seen["inputs"], seen["targets"])
+    assert torch.equal(seen["inputs"], tokens[:, 1:-1])
+    assert torch.equal(seen["targets"], tokens[:, 2:])
+
+
+def test_mtp_prediction_depends_on_hidden_state_not_just_input_token() -> None:
+    """If predictions ignore the hidden state, the head cannot be a real draft head."""
+    torch.manual_seed(1)
+    model = CompactV3Model(small_config()).eval()
+    tokens = torch.randint(64, (2, 20))
+    with torch.no_grad():
+        _, _, diagnostics = model(tokens, tokens)
+        baseline = diagnostics["mtp"].logits.clone()
+
+        hidden = align_hidden_states(model.final_norm(model.token_embedding(tokens)), horizon=2)
+        perturbed = model.mtp(
+            hidden + 5.0,
+            make_mtp_input_tokens(tokens, horizon=2),
+            make_future_targets(tokens, horizon=2),
+        ).logits
+    assert not torch.allclose(baseline, perturbed, atol=1e-4)
 
 
 def test_cuda_fp16_mtp() -> None:

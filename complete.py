@@ -10,7 +10,7 @@ from tokenizers import Tokenizer
 
 from compact_v3.model import CompactV3Model
 from compact_v3.data import load_tokenizer
-from compact_v3.config import CompactV3Config
+from compact_v3.config import CompactV3Config, config_from_checkpoint
 from compact_v3.generation import generate_cached
 
 
@@ -68,7 +68,7 @@ def main() -> None:
     device = torch.device(args.device)
     tokenizer = load_tokenizer(args.tokenizer)
     payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    config = CompactV3Config(**payload["model_config"])
+    config = config_from_checkpoint(payload["model_config"])
     model = CompactV3Model(config).to(device)
     model.load_state_dict(payload["model"])
     model.eval()

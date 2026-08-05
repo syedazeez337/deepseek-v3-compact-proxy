@@ -10,7 +10,7 @@ import torch
 
 from compact_v3.model import CompactV3Model
 from complete import complete_text
-from compact_v3.data import DataConfig, PackedTokenProvider, evaluate_provider, load_tokenizer, prepare_wikitext2
+from compact_v3.data import DataConfig, PackedTokenProvider, evaluate_tokens, load_tokenizer, prepare_wikitext2
 from compact_v3.config import CompactV3Config
 from compact_v3.generation import generate_cached
 from compact_v3.training import (
@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mtp-weight-final", type=float, default=0.1, help="MTP loss weight after the decay-phase fraction of training is reached; set equal to mtp_weight (0.3) to disable annealing")
     parser.add_argument("--mtp-decay-fraction", type=float, default=0.6757, help="Fraction of total_steps after which the MTP loss weight switches to mtp-weight-final")
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--sequence-length", type=int, default=256)
+    parser.add_argument("--sequence-length", type=int, default=512)
     parser.add_argument("--generate", type=int, default=8)
     parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/compact_v3_synthetic.pt"))
     parser.add_argument("--resume", action="store_true")
@@ -65,7 +65,7 @@ def make_config(
     mtp_decay_step_fraction: float = 0.6757,
 ) -> CompactV3Config:
     config = CompactV3Config(
-        context_length=max(256, sequence_length + 8),
+        context_length=max(520, sequence_length + 8),
         router_bias_update_rate=bias_update_rate,
         top_k=top_k,
         n_dense_layers=n_dense_layers,
@@ -99,7 +99,7 @@ def main() -> None:
         corpus = prepare_wikitext2(data_config, force=args.force_data)
         model_config = CompactV3Config(
             vocab_size=corpus.metadata["tokenizer_vocab_size"],
-            context_length=max(256, args.sequence_length + 8),
+            context_length=max(520, args.sequence_length + 8),
             use_moe=not args.dense_control,
             mtp_depth=1 if args.enable_mtp else 0,
             router_bias_update_rate=args.bias_update_rate,
@@ -138,7 +138,7 @@ def main() -> None:
         payload = load_checkpoint(args.checkpoint, model, optimizer, scaler, provider, device)
         start_step = int(payload["step"])
         print(json.dumps({"resumed_from": str(args.checkpoint), "step": start_step}, indent=2))
-    validation_provider = None
+    evaluate_validation = False
     if model_config.use_moe:
         def routing_report() -> dict[str, object]:
             loads = []
@@ -152,7 +152,7 @@ def main() -> None:
         routing_report = lambda: {"expert_loads": [], "load_entropy_by_layer": []}
 
     if corpus is not None and args.eval_batches > 0:
-        validation_provider = PackedTokenProvider(corpus.validation_tokens, args.batch_size, args.sequence_length, args.seed + 2)
+        evaluate_validation = True
 
     def save_progress(step: int, metrics: dict[str, float], batches_drawn: int) -> None:
         if args.checkpoint_every <= 0 or step % args.checkpoint_every != 0:
@@ -162,8 +162,8 @@ def main() -> None:
         checkpoint_metrics["routing"] = routing_report()
         if tokenizer is not None:
             checkpoint_metrics["sample"] = complete_text(model, tokenizer, args.sample_prompt, max_new_tokens=args.sample_tokens)
-        if validation_provider is not None:
-            validation = evaluate_provider(model, validation_provider, args.eval_batches, device)
+        if evaluate_validation:
+            validation = evaluate_tokens(model, corpus.validation_tokens, args.batch_size, args.sequence_length, device, max_batches=args.eval_batches or None)
             checkpoint_metrics.update({f"validation_{key}": value for key, value in validation.items()})
             checkpoint_metrics["validation_perplexity"] = float(np.exp(validation["main_loss"]))
         if corpus is not None:
@@ -215,12 +215,11 @@ def main() -> None:
     if device.type == "cuda":
         torch.cuda.empty_cache()
     if corpus is not None and args.eval_batches > 0:
-        validation_provider = PackedTokenProvider(corpus.validation_tokens, args.batch_size, args.sequence_length, args.seed + 2)
         validation_model = CompactV3Model(model_config).to(device)
         validation_optimizer = make_optimizer(validation_model, training_config)
         validation_scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
         load_checkpoint(args.checkpoint, validation_model, validation_optimizer, validation_scaler, provider, device)
-        validation = evaluate_provider(validation_model, validation_provider, args.eval_batches, device)
+        validation = evaluate_tokens(validation_model, corpus.validation_tokens, args.batch_size, args.sequence_length, device, max_batches=args.eval_batches or None)
         validation["perplexity"] = float(np.exp(validation["main_loss"]))
         print(json.dumps({"validation": validation}, indent=2))
         del validation_model, validation_optimizer, validation_scaler

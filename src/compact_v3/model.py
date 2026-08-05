@@ -5,7 +5,7 @@ from dataclasses import asdict
 import torch
 from torch import Tensor, nn
 
-from compact_v3.mtp import MTPObjective, align_hidden_states, make_future_targets
+from compact_v3.mtp import MTPObjective, align_hidden_states, make_future_targets, make_mtp_input_tokens
 from compact_v3.norms import RMSNorm
 from compact_v3.block import BlockCache, CompactV3Block
 from compact_v3.config import CompactV3Config
@@ -70,8 +70,9 @@ class CompactV3Model(nn.Module):
         }
         if targets is not None and self.config.mtp_depth:
             mtp_hidden = align_hidden_states(hidden_states, horizon=2)
+            mtp_inputs = make_mtp_input_tokens(token_ids, horizon=2)
             mtp_targets = make_future_targets(token_ids, horizon=2)
-            diagnostics["mtp"] = self.mtp(mtp_hidden, mtp_targets)
+            diagnostics["mtp"] = self.mtp(mtp_hidden, mtp_inputs, mtp_targets)
         else:
             diagnostics["mtp"] = None
         return logits, loss, diagnostics

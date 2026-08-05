@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import torch
 
 from compact_v3.model import CompactV3Model
@@ -136,3 +137,42 @@ def test_cuda_training_step() -> None:
     history = train_steps(model, optimizer, scaler, provider, train_config(), torch.device("cuda"), steps=1)
     assert torch.isfinite(torch.tensor(history[0]["combined_loss"]))
     torch.cuda.synchronize()
+
+
+def test_checkpoint_write_is_atomic(tmp_path) -> None:
+    """Gate U: a crash mid-write must not destroy the existing checkpoint.
+
+    torch.save straight to the destination truncates it immediately, so a
+    failure part-way through a multi-hour run left an unloadable file and no
+    way back. The write now goes to a sibling temp file and is renamed in.
+    """
+    import compact_v3.training as training_module
+
+    config = model_config()
+    model = CompactV3Model(config)
+    training_config = train_config()
+    optimizer = make_optimizer(model, training_config)
+    scaler = torch.amp.GradScaler("cuda", enabled=False)
+    provider = SyntheticBatchProvider(config.vocab_size, 1, 8, seed=0)
+    path = tmp_path / "ckpt.pt"
+
+    save_checkpoint(path, model, optimizer, scaler, 1, 8, training_config, provider, {"loss": 1.0})
+    good = path.read_bytes()
+
+    real_save = torch.save
+
+    def exploding_save(payload, target, *args, **kwargs):
+        real_save(payload, target, *args, **kwargs)
+        raise RuntimeError("simulated crash mid-write")
+
+    training_module.torch.save = exploding_save
+    try:
+        with pytest.raises(RuntimeError, match="simulated crash"):
+            save_checkpoint(path, model, optimizer, scaler, 2, 16, training_config, provider, {"loss": 0.5})
+    finally:
+        training_module.torch.save = real_save
+
+    assert path.read_bytes() == good, "existing checkpoint was damaged by a failed write"
+    assert not (tmp_path / "ckpt.pt.tmp").exists(), "temp file left behind after a failed write"
+    reloaded = torch.load(path, map_location="cpu", weights_only=False)
+    assert reloaded["step"] == 1
