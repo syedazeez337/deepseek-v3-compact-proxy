@@ -48,7 +48,13 @@ uv run python v3_cli.py --real-corpus --steps 1954 --checkpoint-every 250 --eval
 
 # complete a prompt with a checkpoint (download one from the Hugging Face repo below first)
 uv run python complete.py "The cat sat on" --checkpoint checkpoints/<name>.pt --device cuda
+
+# or play with it in a browser at http://127.0.0.1:8000
+uv run python serve.py --checkpoint checkpoints/<name>.pt
 ```
+
+`serve.py` is a completion playground, not a chat window: this is a base model with no instruction tuning, so
+it continues text rather than answering questions.
 
 `v3_cli.py --help` lists every flag; each one was added by a specific gate below and defaults to that gate's
 measured-best value. `--real-corpus` downloads and caches WikiText-2 on first use (provenance hashes recorded in
@@ -75,6 +81,8 @@ The library lives in `src/compact_v3/`; the two CLI entry points stay at the rep
 | `src/compact_v3/data.py` | WikiText loader: train-only BPE tokenizer, SHA256-hashed provenance |
 | `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
 | `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
+| `serve.py` | Local playground server: streams tokens over SSE, standard library only |
+| `ui/index.html` | Browser playground for a trained checkpoint (completion, not chat) |
 | `experiments/` | One `GATE_<letter>_*.md` per gate: spec, method, measured numbers, interpretation |
 | `tests/` | Active test suite (81 tests as of Gate U) |
 | `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
