@@ -2,9 +2,9 @@ from pathlib import Path
 
 import torch
 
-from compact_v3_model import CompactV3Model
-from v3_config import CompactV3Config
-from v3_training import (
+from compact_v3.model import CompactV3Model
+from compact_v3.config import CompactV3Config
+from compact_v3.training import (
     SyntheticBatchProvider,
     TrainingConfig,
     load_checkpoint,

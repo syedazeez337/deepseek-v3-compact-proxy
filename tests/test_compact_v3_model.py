@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from compact_v3_model import CompactV3Model
-from norms import RMSNorm
-from v3_config import CompactV3Config
+from compact_v3.model import CompactV3Model
+from compact_v3.norms import RMSNorm
+from compact_v3.config import CompactV3Config
 
 
 def config(**overrides) -> CompactV3Config:

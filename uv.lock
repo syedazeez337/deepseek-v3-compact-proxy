@@ -172,7 +172,7 @@ wheels = [
 [[package]]
 name = "compact-v3-proxy"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "datasets" },
     { name = "numpy" },

@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from mla import MLACache, MultiHeadLatentAttention
-from v3_config import CompactV3Config
-from v3_rope import RotaryEmbedding
+from compact_v3.mla import MLACache, MultiHeadLatentAttention
+from compact_v3.config import CompactV3Config
+from compact_v3.rope import RotaryEmbedding
 
 
 @pytest.fixture

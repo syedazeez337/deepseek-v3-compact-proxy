@@ -5,8 +5,8 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor, nn
 
-from norms import RMSNorm
-from v3_config import CompactV3Config
+from compact_v3.norms import RMSNorm
+from compact_v3.config import CompactV3Config
 
 
 @dataclass

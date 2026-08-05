@@ -3,9 +3,9 @@ from __future__ import annotations
 import torch
 from torch import Tensor, nn
 
-from experts import SwiGLUExpert
-from routing import LoadBalancer, RoutingResult, TopKRouter
-from v3_config import CompactV3Config
+from compact_v3.experts import SwiGLUExpert
+from compact_v3.routing import LoadBalancer, RoutingResult, TopKRouter
+from compact_v3.config import CompactV3Config
 
 
 class DeepSeekMoE(nn.Module):

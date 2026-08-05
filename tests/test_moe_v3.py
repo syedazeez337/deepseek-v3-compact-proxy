@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from experts import SwiGLUExpert
-from moe_v3 import DeepSeekMoE
-from v3_config import CompactV3Config
+from compact_v3.experts import SwiGLUExpert
+from compact_v3.moe import DeepSeekMoE
+from compact_v3.config import CompactV3Config
 
 
 def make_config(top_k: int = 1) -> CompactV3Config:

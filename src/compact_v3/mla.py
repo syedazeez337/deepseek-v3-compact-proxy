@@ -6,9 +6,9 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from norms import RMSNorm
-from v3_rope import RotaryEmbedding
-from v3_config import CompactV3Config
+from compact_v3.norms import RMSNorm
+from compact_v3.rope import RotaryEmbedding
+from compact_v3.config import CompactV3Config
 
 
 @dataclass

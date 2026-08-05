@@ -8,10 +8,10 @@ from pathlib import Path
 import torch
 from tokenizers import Tokenizer
 
-from compact_v3_model import CompactV3Model
-from data_v3 import load_tokenizer
-from v3_config import CompactV3Config
-from v3_generation import generate_cached
+from compact_v3.model import CompactV3Model
+from compact_v3.data import load_tokenizer
+from compact_v3.config import CompactV3Config
+from compact_v3.generation import generate_cached
 
 
 def build_parser() -> argparse.ArgumentParser:

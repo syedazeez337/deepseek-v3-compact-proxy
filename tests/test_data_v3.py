@@ -2,7 +2,7 @@ import json
 
 import torch
 
-from data_v3 import DataConfig, PackedTokenProvider, _encode_documents, _pack, _train_tokenizer, load_tokenizer
+from compact_v3.data import DataConfig, PackedTokenProvider, _encode_documents, _pack, _train_tokenizer, load_tokenizer
 
 
 def test_tokenizer_and_packing_contract(tmp_path) -> None:

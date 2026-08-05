@@ -5,10 +5,10 @@ from dataclasses import asdict
 import torch
 from torch import Tensor, nn
 
-from mtp import MTPObjective, align_hidden_states, make_future_targets
-from norms import RMSNorm
-from v3_block import BlockCache, CompactV3Block
-from v3_config import CompactV3Config
+from compact_v3.mtp import MTPObjective, align_hidden_states, make_future_targets
+from compact_v3.norms import RMSNorm
+from compact_v3.block import BlockCache, CompactV3Block
+from compact_v3.config import CompactV3Config
 
 
 class CompactV3Model(nn.Module):

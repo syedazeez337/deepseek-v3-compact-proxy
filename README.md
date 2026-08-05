@@ -5,7 +5,7 @@ DeepSeekMoE (shared + fine-grained routed experts, auxiliary-loss-free load bala
 Prediction (MTP). It does not load or reproduce the official 671B model — the goal is architectural fidelity at a
 scale that trains on a single consumer GPU, not literal parameter-count reproduction.
 
-Every component follows a research-engineering discipline, recorded in `experiments_GATE_*.md`:
+Every component follows a research-engineering discipline, recorded in `experiments/GATE_*.md`:
 
 ```text
 mathematical specification -> reference implementation -> tests -> controlled experiment
@@ -33,11 +33,11 @@ mtp_weight=0.3 annealed to 0.1 at 67.6% of training (V3's own schedule)
 
 Best measured result: **292.54 validation perplexity** on WikiText-2 (`checkpoints/..._gateq_mtp_anneal.pt`,
 hosted on Hugging Face — see below). At this perplexity the model produces grammatically fluent but topically
-incoherent completions — see `experiments_GATE_S_READABLE_GENERATION.md` for a real example and honest
+incoherent completions — see `experiments/GATE_S_READABLE_GENERATION.md` for a real example and honest
 interpretation of what "ready" would actually require.
 
 **What's next** (not yet started, three options on the table, see "Roadmap" below): Phase 2 (YaRN context
-extension), Phase 3 (SFT + GRPO-based RL post-training), or a flagged efficiency fix to `moe_v3.py`'s per-expert
+extension), Phase 3 (SFT + GRPO-based RL post-training), or a flagged efficiency fix to `src/compact_v3/moe.py`'s per-expert
 dispatch loop.
 
 ## Quickstart
@@ -57,25 +57,32 @@ measured-best value. `--real-corpus` downloads and caches WikiText-2 on first us
 
 ## Module map
 
+The library lives in `src/compact_v3/`; the two CLI entry points stay at the repo root.
+
 | File | What it is |
 |---|---|
-| `v3_config.py` | `CompactV3Config` — every architectural knob, current defaults = Configuration B |
-| `mla.py` | Multi-head Latent Attention: `reference`, `prefill`, absorbed `decode` (+ `decode_naive` for the equivalence proof) |
-| `v3_rope.py` | Decoupled RoPE |
-| `norms.py` | RMSNorm |
-| `routing.py` | Sigmoid-affinity top-k router, auxiliary-loss-free bias load balancer, load-entropy diagnostics |
-| `experts.py` | SwiGLU expert |
-| `moe_v3.py` | DeepSeekMoE: shared + routed experts, sequence-balance loss |
-| `v3_block.py` | Pre-norm MLA + (dense or MoE) residual block, per-layer dense/MoE override |
-| `compact_v3_model.py` | Full model: embedding -> blocks -> tied output head |
-| `mtp.py` | Sequential depth-1 MTP objective, weight-annealing schedule |
-| `v3_generation.py` | Cached vs uncached generation, proven token-identical |
-| `v3_training.py` | AdamW + warmup/cosine LR, FP16 autocast + GradScaler, full checkpoint/resume |
-| `data_v3.py` | WikiText-2 loader: train-only BPE tokenizer, SHA256-hashed provenance |
+| `src/compact_v3/config.py` | `CompactV3Config` — every architectural knob, current defaults = Configuration B |
+| `src/compact_v3/mla.py` | Multi-head Latent Attention: `reference`, `prefill`, absorbed `decode` (+ `decode_naive` for the equivalence proof) |
+| `src/compact_v3/rope.py` | Decoupled RoPE |
+| `src/compact_v3/norms.py` | RMSNorm |
+| `src/compact_v3/routing.py` | Sigmoid-affinity top-k router, auxiliary-loss-free bias load balancer, load-entropy diagnostics |
+| `src/compact_v3/experts.py` | SwiGLU expert |
+| `src/compact_v3/moe.py` | DeepSeekMoE: shared + routed experts, sequence-balance loss |
+| `src/compact_v3/block.py` | Pre-norm MLA + (dense or MoE) residual block, per-layer dense/MoE override |
+| `src/compact_v3/model.py` | Full model: embedding -> blocks -> tied output head |
+| `src/compact_v3/mtp.py` | Sequential depth-1 MTP objective, weight-annealing schedule |
+| `src/compact_v3/generation.py` | Cached vs uncached generation, proven token-identical |
+| `src/compact_v3/training.py` | AdamW + warmup/cosine LR, FP16 autocast + GradScaler, full checkpoint/resume |
+| `src/compact_v3/data.py` | WikiText loader: train-only BPE tokenizer, SHA256-hashed provenance |
 | `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
 | `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
-| `tests/` | Active test suite (65 tests as of Gate S) |
+| `experiments/` | One `GATE_<letter>_*.md` per gate: spec, method, measured numbers, interpretation |
+| `tests/` | Active test suite (66 tests as of Gate S) |
 | `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
+
+Gate documents in `experiments/` refer to modules by the flat, pre-package names they had when each gate was
+run (`v3_config.py`, `moe_v3.py`, `compact_v3_model.py`, and so on). Those references are left as written: they
+are a record of what was true at the time, not live links. The table above maps each one to its current path.
 
 ## Gate history
 
@@ -101,7 +108,7 @@ measured-best value. `--real-corpus` downloads and caches WikiText-2 on first us
 | R | MLA weight absorption, matched to V3's real inference code; also found and fixed a `v3_cli.py` VRAM bug that had produced a wrong conclusion in Gate O |
 | S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
 
-Full detail, measured numbers, and citations are in each `experiments_GATE_<letter>_*.md`.
+Full detail, measured numbers, and citations are in each `experiments/GATE_<letter>_*.md`.
 
 ## Roadmap
 
@@ -114,7 +121,7 @@ Three directions are open, not yet started:
    SFT (with the same provenance diligence as WikiText-2), and a verifiable-reward toy task for RL sized to what
    a 155M-parameter model can actually do (real math/code reasoning is out of reach even at this scale) —
    R1-Zero's rule-based accuracy+format reward, not a learned reward model.
-3. **MoE dispatch efficiency.** `moe_v3.py` dispatches routed experts in a Python loop; Gate O found this costs
+3. **MoE dispatch efficiency.** `src/compact_v3/moe.py` dispatches routed experts in a Python loop; Gate O found this costs
    real throughput as expert count grows even though active compute/token doesn't change. Should happen before
    expert count is pushed past 32.
 

@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from compact_v3_model import CompactV3Model
-from mtp import MTPObjective, align_hidden_states, make_future_targets, mtp_weight_schedule
-from v3_config import CompactV3Config
+from compact_v3.model import CompactV3Model
+from compact_v3.mtp import MTPObjective, align_hidden_states, make_future_targets, mtp_weight_schedule
+from compact_v3.config import CompactV3Config
 
 
 def small_config(mtp_depth: int = 1) -> CompactV3Config:

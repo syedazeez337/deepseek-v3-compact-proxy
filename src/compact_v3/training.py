@@ -10,9 +10,9 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from compact_v3_model import CompactV3Model
-from mtp import mtp_weight_schedule
-from v3_config import CompactV3Config
+from compact_v3.model import CompactV3Model
+from compact_v3.mtp import mtp_weight_schedule
+from compact_v3.config import CompactV3Config
 
 
 @dataclass(frozen=True)

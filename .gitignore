@@ -14,6 +14,8 @@ archive/
 # Trained checkpoints are large binaries; hosted on Hugging Face Hub instead (see checkpoints/README.md)
 checkpoints/*.pt
 
-# Cached/regeneratable corpus data; provenance hashes are kept in data_v3/metadata.json
-data_v3/*.pt
-data_v3/tokenizer.json
+# Cached/regeneratable corpus data; provenance hashes are kept in each
+# cache directory's metadata.json, which stays tracked. Covers per-dataset-config
+# caches (data_v3/, data_v3_103/, ...) created by --dataset-cache-dir.
+data_v3*/*.pt
+data_v3*/tokenizer.json

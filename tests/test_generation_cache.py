@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from compact_v3_model import CompactV3Model
-from v3_config import CompactV3Config
-from v3_generation import cache_shapes, generate_cached, generate_uncached, sample_next_token
+from compact_v3.model import CompactV3Model
+from compact_v3.config import CompactV3Config
+from compact_v3.generation import cache_shapes, generate_cached, generate_uncached, sample_next_token
 
 
 def config() -> CompactV3Config:

@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 from torch import Tensor, nn
 
-from experts import SwiGLUExpert
-from mla import MLACache, MultiHeadLatentAttention
-from moe_v3 import DeepSeekMoE
-from norms import RMSNorm
-from routing import RoutingResult
-from v3_config import CompactV3Config
+from compact_v3.experts import SwiGLUExpert
+from compact_v3.mla import MLACache, MultiHeadLatentAttention
+from compact_v3.moe import DeepSeekMoE
+from compact_v3.norms import RMSNorm
+from compact_v3.routing import RoutingResult
+from compact_v3.config import CompactV3Config
 
 
 @dataclass

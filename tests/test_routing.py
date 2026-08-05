@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from routing import LoadBalancer, TopKRouter
+from compact_v3.routing import LoadBalancer, TopKRouter
 
 
 def test_top_k_selection_and_weight_normalization() -> None:

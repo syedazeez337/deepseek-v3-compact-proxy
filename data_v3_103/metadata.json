@@ -1,0 +1,23 @@
+{
+  "dataset": {
+    "dataset_id": "Salesforce/wikitext",
+    "dataset_config": "wikitext-103-raw-v1",
+    "train_split": "train",
+    "validation_split": "validation",
+    "vocab_size": 32000,
+    "context_length": 256,
+    "batch_size": 8,
+    "seed": 1337,
+    "cache_dir": "data_v3_103"
+  },
+  "license": "CC BY-SA 4.0 / GFDL as listed by Salesforce/wikitext dataset card",
+  "train_documents": 1165029,
+  "validation_documents": 2461,
+  "tokenizer_vocab_size": 32000,
+  "train_tokens": 115241113,
+  "validation_tokens": 241580,
+  "train_token_sha256": "269a006443cd82b325176db7f190f592ea13c9ec84b082e32ce9a00cdd0b6fc7",
+  "validation_token_sha256": "565d06655d5479e7450708e808d5d0d4e5f798bc694f2856b29cfa3d20c839ee",
+  "tokenizer_sha256": "be3accdb683592fb0d5dda303867fbbbab0622bda6c00a55035b0e39da089078",
+  "preprocessing": "non-empty documents, tokenizer trained on train split only, EOS after each document, fixed causal blocks"
+}

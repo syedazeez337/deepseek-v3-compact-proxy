@@ -6,8 +6,8 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from compact_v3_model import CompactV3Model
-from v3_block import BlockCache
+from compact_v3.model import CompactV3Model
+from compact_v3.block import BlockCache
 
 
 @dataclass

@@ -8,12 +8,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from compact_v3_model import CompactV3Model
+from compact_v3.model import CompactV3Model
 from complete import complete_text
-from data_v3 import DataConfig, PackedTokenProvider, evaluate_provider, load_tokenizer, prepare_wikitext2
-from v3_config import CompactV3Config
-from v3_generation import generate_cached
-from v3_training import (
+from compact_v3.data import DataConfig, PackedTokenProvider, evaluate_provider, load_tokenizer, prepare_wikitext2
+from compact_v3.config import CompactV3Config
+from compact_v3.generation import generate_cached
+from compact_v3.training import (
     SyntheticBatchProvider,
     TrainingConfig,
     environment_metadata,
