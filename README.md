@@ -64,34 +64,35 @@ uv run pytest -q tests
 Checkpoints are too large for git and live on Hugging Face:
 **[huggingface.co/syedazeez/deepseek-v3-compact-proxy](https://huggingface.co/syedazeez/deepseek-v3-compact-proxy)**
 
-The 15 checkpoints from Gates I through Q are uploaded. The Gate V and Gate W checkpoints named in this README
-are not uploaded yet, so the commands below work today only for the earlier files. Substitute
-`compact_v3_wikitext_moe_scaleup_1m_gateq_mtp_anneal.pt` to try one now.
+`compact_v3_wikitext103_2ep.pt` is the one to want: 41.35 perplexity, the Gate W result. Download it together
+with `tokenizer_wikitext103.json`, which it was trained with.
 
-Download the one you want into `checkpoints/`. Any of these three work.
+Any of these three work.
 
 **With the Hugging Face CLI:**
 
 ```powershell
 uv run pip install huggingface_hub[cli]
 uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy `
-  compact_v3_wikitext103_2ep.pt --local-dir checkpoints
+  compact_v3_wikitext103_2ep.pt tokenizer_wikitext103.json --local-dir checkpoints
 ```
 
 **With Python:**
 
 ```powershell
-uv run python -c "from huggingface_hub import hf_hub_download; hf_hub_download('syedazeez/deepseek-v3-compact-proxy', 'compact_v3_wikitext103_2ep.pt', local_dir='checkpoints')"
+uv run python -c "from huggingface_hub import hf_hub_download as d; [d('syedazeez/deepseek-v3-compact-proxy', f, local_dir='checkpoints') for f in ['compact_v3_wikitext103_2ep.pt','tokenizer_wikitext103.json']]"
 ```
 
 **With a direct download:**
 
 ```powershell
-Invoke-WebRequest -Uri "https://huggingface.co/syedazeez/deepseek-v3-compact-proxy/resolve/main/compact_v3_wikitext103_2ep.pt" -OutFile "checkpoints\compact_v3_wikitext103_2ep.pt"
+$base = "https://huggingface.co/syedazeez/deepseek-v3-compact-proxy/resolve/main"
+Invoke-WebRequest "$base/compact_v3_wikitext103_2ep.pt" -OutFile "checkpoints\compact_v3_wikitext103_2ep.pt"
+Invoke-WebRequest "$base/tokenizer_wikitext103.json" -OutFile "checkpoints\tokenizer_wikitext103.json"
 ```
 
-The file must end up at `checkpoints/<name>.pt`. Every command below takes that path directly, so nothing else
-needs configuring.
+Both files must end up in `checkpoints/`. Every command below takes those paths directly, so nothing else needs
+configuring.
 
 Checkpoints are around 1.8GB because they carry AdamW optimizer state for resuming training. The weights alone
 are 592MB. `checkpoints/README.md` lists every checkpoint, the gate that produced it, and the command that
@@ -105,10 +106,13 @@ tokenizer produces text that looks like noise.
 ## Serve it in a browser
 
 ```powershell
-uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt
+uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt `
+  --tokenizer checkpoints\tokenizer_wikitext103.json
 ```
 
 Open <http://127.0.0.1:8000>. Ctrl-C stops it.
+
+Drop `--tokenizer` if you trained the checkpoint yourself, since it records the path it was trained with.
 
 | flag | default | notes |
 |---|---|---|
