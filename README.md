@@ -1,167 +1,266 @@
 # DeepSeek-V3 Compact Proxy
 
-A clean-start, mechanism-faithful proxy for DeepSeek-V3's architecture: Multi-head Latent Attention (MLA),
-DeepSeekMoE (shared + fine-grained routed experts, auxiliary-loss-free load balancing), and Multi-Token
-Prediction (MTP). It does not load or reproduce the official 671B model — the goal is architectural fidelity at a
-scale that trains on a single consumer GPU, not literal parameter-count reproduction.
+A from-scratch implementation of DeepSeek-V3's three transferable architecture mechanisms, sized to train on one
+consumer GPU:
 
-Every component follows a research-engineering discipline, recorded in `experiments/GATE_*.md`:
+- **Multi-head Latent Attention (MLA)** with decoupled RoPE and weight-absorbed decode
+- **DeepSeekMoE**: shared plus fine-grained routed experts, auxiliary-loss-free load balancing
+- **Multi-Token Prediction (MTP)**: a depth-1 draft head trained alongside the main objective
 
-```text
-mathematical specification -> reference implementation -> tests -> controlled experiment
-  -> measured result -> interpretation -> next change
-```
+This does not load or reproduce the official 671B weights. The goal is architectural fidelity at a scale that
+fits a 6GB laptop GPU.
 
-Hyperparameters copied from DeepSeek-V3's own published values are treated as a *prior*, not a given — several
-gates below found that a value tuned at V3's scale (256 experts, huge batches) actively hurt at this project's
-scale, and the smaller value that measured better became the new default. Failures are recorded, not hidden:
-several gates below describe an approach that didn't work, or a bug that was found and fixed, alongside what did.
-
-## Current status (2026-08-06)
-
-Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate W. The model is at
-**Configuration B**:
+Every component went through the same loop, recorded one file per gate in `experiments/`:
 
 ```text
-d_model=512  n_heads=8  n_layer=6 (1 dense prefix + 5 MoE)
-n_routed_experts=32  n_shared_experts=1  top_k=2 (~6.25% density)
-q_lora_rank=128  kv_lora_rank=128  qk_nope_head_dim=48  qk_rope_head_dim=16  v_head_dim=48
-route_scale=0.75  router_bias_update_rate=0.0001
-mtp_weight=0.3 annealed to 0.1 at 67.6% of training (V3's own schedule)
-~155M parameters, absorbed MLA decode (matches V3's real inference/model.py "absorb" path)
+specification -> implementation -> tests -> controlled experiment -> measured result -> interpretation
 ```
 
-Best measured result: **41.35 validation perplexity** on WikiText-103
-(`checkpoints/compact_v3_wikitext103_2ep.pt`, 229.4M tokens, 2 epochs, Gate W). Note this is not comparable to
-the earlier 292.54 figure, which was WikiText-2 validation with a WikiText-2 tokenizer at context 264 — a
-different corpus, tokenizer and denominator. The comparable predecessor is Gate V's shakedown at 87.85 on the
-identical setup, so Gate W is 2.12x better.
+Hyperparameters published by DeepSeek are treated as a starting prior rather than a given. Several gates below
+measured a value tuned at V3's scale performing worse here, and adopted the smaller value that won. Gates that
+failed, or that found bugs invalidating an earlier conclusion, are recorded alongside the ones that worked.
 
-At 41.35 the model produces locally coherent Wikipedia-style prose that commits to specifics from the prompt,
-but still drifts across paragraphs and invents facts freely. Word-level equivalent is 67.1 (fertility 1.13,
-measured), against 29.4 for a published 6-layer 156M decoder — roughly 2.3x off a well-trained model of the
-same shape.
+## Current status
 
-**What's next** (see "Roadmap" below): Gate U, the WikiText-103 training run, then Phase 2 (YaRN context
-extension) and Phase 3 (SFT + GRPO-based RL post-training).
+Phase 1, pretraining architecture, is complete through Gate W.
 
-## Quickstart
+**Best result: 41.35 validation perplexity on WikiText-103**, from `compact_v3_wikitext103_2ep.pt` (229.4M
+tokens, 2 epochs, 64,000 steps). Evaluated deterministically over all 470 validation windows.
+
+Configuration B:
+
+```text
+d_model 512, n_heads 8, n_layer 6 (1 dense prefix + 5 MoE), context 520
+n_routed_experts 32, n_shared_experts 1, top_k 2 (about 6.25% density)
+q_lora_rank 128, kv_lora_rank 128, qk_nope_head_dim 48, qk_rope_head_dim 16, v_head_dim 48
+route_scale 0.75, router_bias_update_rate 1e-4
+mtp_weight 0.3, annealed to 0.1 at 67.6% of training
+155,271,168 parameters total, about 36M active per token
+```
+
+Two caveats on that perplexity number. It is not comparable to the earlier 292.54 figure, which used WikiText-2
+validation with a WikiText-2 tokenizer at context 264, a different corpus and denominator. The comparable
+predecessor is Gate V's 87.85 on the identical setup, which makes Gate W 2.12x better. And at a measured
+fertility of 1.13 tokens per word, 41.35 subword perplexity is 67.1 word-level, against 29.4 for a published
+6-layer 156M-parameter decoder. This model is roughly 2.3x off a well-trained model of the same shape.
+
+The model writes locally coherent Wikipedia-style prose and picks up specifics from the prompt. It drifts across
+paragraphs and invents facts. It has had no instruction tuning, so it continues text and does not answer
+questions.
+
+## Install
 
 ```powershell
+git clone https://github.com/syedazeez337/deepseek-v3-compact-proxy.git
+cd deepseek-v3-compact-proxy
 uv sync
-uv run pytest -q tests                          # full active suite (tests/, not archive/)
-uv run python v3_cli.py --real-corpus --steps 1954 --checkpoint-every 250 --eval-batches 32 --generate 32 --device cuda --enable-mtp --checkpoint checkpoints/my_run.pt
-
-# complete a prompt with a checkpoint (download one from the Hugging Face repo below first)
-uv run python complete.py "The cat sat on" --checkpoint checkpoints/<name>.pt --device cuda
-
-# or play with it in a browser at http://127.0.0.1:8000
-uv run python serve.py --checkpoint checkpoints/<name>.pt
+uv run pytest -q tests
 ```
 
-`serve.py` is a completion playground, not a chat window: this is a base model with no instruction tuning, so
-it continues text rather than answering questions.
+87 tests, around a minute on an idle 6GB GPU. CUDA is optional; the suite skips GPU tests without it.
 
-`v3_cli.py --help` lists every flag; each one was added by a specific gate below and defaults to that gate's
-measured-best value. `--real-corpus` downloads and caches WikiText-2 on first use (provenance hashes recorded in
-`data_v3/metadata.json`). Requires CUDA for a GPU run; `--device cpu` works for correctness checks at small scale.
+## Get a checkpoint
+
+Checkpoints are too large for git and live on Hugging Face:
+**[huggingface.co/syedazeez/deepseek-v3-compact-proxy](https://huggingface.co/syedazeez/deepseek-v3-compact-proxy)**
+
+The 15 checkpoints from Gates I through Q are uploaded. The Gate V and Gate W checkpoints named in this README
+are not uploaded yet, so the commands below work today only for the earlier files. Substitute
+`compact_v3_wikitext_moe_scaleup_1m_gateq_mtp_anneal.pt` to try one now.
+
+Download the one you want into `checkpoints/`. Any of these three work.
+
+**With the Hugging Face CLI:**
+
+```powershell
+uv run pip install huggingface_hub[cli]
+uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy `
+  compact_v3_wikitext103_2ep.pt --local-dir checkpoints
+```
+
+**With Python:**
+
+```powershell
+uv run python -c "from huggingface_hub import hf_hub_download; hf_hub_download('syedazeez/deepseek-v3-compact-proxy', 'compact_v3_wikitext103_2ep.pt', local_dir='checkpoints')"
+```
+
+**With a direct download:**
+
+```powershell
+Invoke-WebRequest -Uri "https://huggingface.co/syedazeez/deepseek-v3-compact-proxy/resolve/main/compact_v3_wikitext103_2ep.pt" -OutFile "checkpoints\compact_v3_wikitext103_2ep.pt"
+```
+
+The file must end up at `checkpoints/<name>.pt`. Every command below takes that path directly, so nothing else
+needs configuring.
+
+Checkpoints are around 1.8GB because they carry AdamW optimizer state for resuming training. The weights alone
+are 592MB. `checkpoints/README.md` lists every checkpoint, the gate that produced it, and the command that
+regenerates it.
+
+**You also need the matching tokenizer.** Each checkpoint records which one it was trained with. Regenerate it
+by running `v3_cli.py` once with `--real-corpus` and the matching `--dataset-config`, which downloads the corpus
+and fits the tokenizer, or copy `data_v3_103/tokenizer.json` from a machine that has it. Decoding with the wrong
+tokenizer produces text that looks like noise.
+
+## Serve it in a browser
+
+```powershell
+uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt
+```
+
+Open <http://127.0.0.1:8000>. Ctrl-C stops it.
+
+| flag | default | notes |
+|---|---|---|
+| `--checkpoint` | `checkpoints/compact_v3_wikitext103_shakedown.pt` | any `.pt` file |
+| `--device` | `cuda` when available | use `cpu` if the GPU is busy training |
+| `--port` | `8000` | |
+| `--tokenizer` | read from the checkpoint | override if the recorded path is wrong |
+
+Running on CPU costs nothing here. Single-token decode is latency-bound rather than compute-bound, so CPU
+measures about 65 tok/s against 49 tok/s on GPU:
+
+```powershell
+uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt --device cpu
+```
+
+The page is a completion playground rather than a chat window, because a base model with no instruction tuning
+continues text instead of answering questions. It streams tokens as they generate and gives you:
+
+- **settings**: temperature, top-k, top-p, max tokens, persisted for the session
+- **sampling / greedy**: switch decoding mode
+- **raw**: monospace with whitespace made visible, for inspecting tokenization
+- **tokens**: a collapsible panel showing each generated token, with its id on hover
+- a context meter reading `7 prompt + 96 new / 520 ctx`, which flags when a request was capped
+- a stop button that keeps whatever generated so far
+
+Temperature between 0.7 and 0.9 works well. Greedy decoding tends to loop at this scale.
+
+## Complete a prompt from the command line
+
+```powershell
+uv run python complete.py "The bridge was built in" `
+  --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt `
+  --tokenizer data_v3_103\tokenizer.json `
+  --max-new-tokens 40 --do-sample --temperature 0.8 --top-k 40 --device cuda
+```
+
+Prints JSON with the prompt, the completion, the continuation alone, and tokens per second.
+
+## Train
+
+```powershell
+uv run python v3_cli.py `
+  --real-corpus --dataset-config wikitext-103-raw-v1 --dataset-cache-dir data_v3_103 `
+  --steps 64000 --warmup-steps 1000 `
+  --batch-size 7 --sequence-length 512 `
+  --checkpoint-every 4000 --eval-batches 68 --generate 64 `
+  --device cuda --enable-mtp `
+  --checkpoint checkpoints\my_run.pt
+```
+
+First run downloads WikiText-103, fits a 32K byte-level BPE tokenizer on the train split alone, and caches both
+with SHA256 provenance in `data_v3_103/metadata.json`. That takes several minutes.
+
+Add `--resume` to continue an interrupted run from its checkpoint. Optimizer state, GradScaler, RNG state and
+data-provider position all restore, so a resumed run continues rather than restarting. Checkpoint writes go to a
+temp file and rename into place, so an interrupted write cannot destroy the previous checkpoint.
+
+`v3_cli.py --help` lists every flag. Each was added by a specific gate and defaults to that gate's measured-best
+value.
+
+Gate W took about 14 hours on an RTX 3050 6GB at batch 7 and sequence 512, across an interruption and resume,
+with throughput degrading part way through for reasons recorded in its gate document. Batch 8 exceeds VRAM and runs slower
+because Windows spills to shared system memory rather than raising an out-of-memory error.
 
 ## Module map
 
-The library lives in `src/compact_v3/`; the two CLI entry points stay at the repo root.
+The library is `src/compact_v3/`. The three CLI entry points stay at the repo root.
 
-| File | What it is |
+| File | Contents |
 |---|---|
-| `src/compact_v3/config.py` | `CompactV3Config` — every architectural knob, current defaults = Configuration B |
-| `src/compact_v3/mla.py` | Multi-head Latent Attention: `reference`, `prefill`, absorbed `decode` (+ `decode_naive` for the equivalence proof) |
+| `src/compact_v3/config.py` | `CompactV3Config`, every architectural knob, plus legacy-aware checkpoint loading |
+| `src/compact_v3/mla.py` | Multi-head Latent Attention: fused `reference`, `prefill`, absorbed `decode`, and two manual variants kept as equivalence proofs |
 | `src/compact_v3/rope.py` | Decoupled RoPE |
 | `src/compact_v3/norms.py` | RMSNorm |
-| `src/compact_v3/routing.py` | Sigmoid-affinity top-k router, auxiliary-loss-free bias load balancer, load-entropy diagnostics |
+| `src/compact_v3/routing.py` | Sigmoid-affinity top-k router, loss-free bias balancer, load-entropy diagnostics |
 | `src/compact_v3/experts.py` | SwiGLU expert |
-| `src/compact_v3/moe.py` | DeepSeekMoE: shared + routed experts, sequence-balance loss |
-| `src/compact_v3/block.py` | Pre-norm MLA + (dense or MoE) residual block, per-layer dense/MoE override |
-| `src/compact_v3/model.py` | Full model: embedding -> blocks -> tied output head |
-| `src/compact_v3/mtp.py` | Sequential depth-1 MTP objective, weight-annealing schedule |
-| `src/compact_v3/generation.py` | Cached vs uncached generation, proven token-identical |
-| `src/compact_v3/training.py` | AdamW + warmup/cosine LR, FP16 autocast + GradScaler, full checkpoint/resume |
-| `src/compact_v3/data.py` | WikiText loader: train-only BPE tokenizer, SHA256-hashed provenance |
-| `v3_cli.py` | End-to-end train -> checkpoint -> resume -> generate CLI |
-| `complete.py` | Prompt-in/text-out CLI: encode a real prompt, generate, decode to readable text |
-| `serve.py` | Local playground server: streams tokens over SSE, standard library only |
-| `ui/index.html` | Browser playground for a trained checkpoint (completion, not chat) |
-| `experiments/` | One `GATE_<letter>_*.md` per gate: spec, method, measured numbers, interpretation |
-| `tests/` | Active test suite (81 tests as of Gate U) |
-| `archive/` | A prior, superseded project attempt — excluded from this repo; see git history if needed |
+| `src/compact_v3/moe.py` | DeepSeekMoE: shared plus routed experts, sorted dispatch, sequence-balance loss |
+| `src/compact_v3/block.py` | Pre-norm MLA plus dense or MoE residual block |
+| `src/compact_v3/model.py` | Embedding, blocks, tied output head, MTP wiring |
+| `src/compact_v3/mtp.py` | Depth-1 MTP objective and weight-annealing schedule |
+| `src/compact_v3/generation.py` | Cached and uncached generation, proven token-identical |
+| `src/compact_v3/training.py` | AdamW with warmup and cosine decay, FP16 autocast, atomic checkpointing |
+| `src/compact_v3/data.py` | WikiText loader, train-split tokenizer, deterministic evaluation |
+| `v3_cli.py` | Train, checkpoint, resume, generate |
+| `complete.py` | Prompt in, text out |
+| `serve.py` | Playground server, streams over SSE, standard library only |
+| `ui/index.html` | Browser playground |
+| `experiments/` | One document per gate: specification, method, numbers, interpretation |
+| `tests/` | 87 tests |
 
-Gate documents in `experiments/` refer to modules by the flat, pre-package names they had when each gate was
-run (`v3_config.py`, `moe_v3.py`, `compact_v3_model.py`, and so on). Those references are left as written: they
-are a record of what was true at the time, not live links. The table above maps each one to its current path.
+Gate documents name modules by the flat filenames they had before the package restructure (`v3_config.py`,
+`moe_v3.py`, and so on). Those names are left as written because they record what was true at the time. The
+table above maps them to current paths.
 
 ## Gate history
 
-| Gate | What it settled |
+| Gate | Result |
 |---|---|
-| A | Compact MLA reference/cache equivalence |
-| B | Shared-plus-routed MoE mechanics |
-| C | Decoder integration (full model) |
-| D | Sequential depth-1 MTP |
-| E | Cache-aware generation, cached vs uncached token-identical |
-| F | AMP training/checkpoint mechanics |
-| G | Full train -> checkpoint -> resume -> generate lifecycle |
-| H | WikiText-2 real-corpus smoke, provenance hashing |
-| I | 1M-token dense control |
-| J | 1M-token dense vs 4-expert top-1 MoE |
-| K | Load-balancing entropy diagnostic added; found persistent imbalance |
-| L | Bias-update-rate swept against DeepSeek's Loss-Free-Balancing paper; lower rate won, opposite of the literature's own scale |
-| M | Top-2 routing; +2.7% perplexity for zero extra stored parameters |
-| N | Dense-layer prefix, compute-matched to MoE active FLOPs (first attempt was confounded — see the doc) |
-| O | GPU scale-up: Configuration A -> B (15M -> 155M params); found & used only 9.5% of the GPU before this |
-| P | `route_scale` swept; V3's own value (2.5) measured worse than a smaller one (0.75) |
-| Q | MTP loss-weight annealing (V3's 0.3->0.1 schedule); confirmed beneficial |
-| R | MLA weight absorption, matched to V3's real inference code; also found and fixed a `v3_cli.py` VRAM bug that had produced a wrong conclusion in Gate O |
-| S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
-| T | Batched MoE dispatch: removed a per-expert device sync for +25.7% training and ~1.9x decode throughput, bit-exact. The textbook grouped-GEMM fix measured *worse* and was rejected (padding cost scales with routing imbalance) |
-| U | Pre-run audit. Found the MTP objective was degenerate (the head had learned the identity map, 100% top-1 on its own input), checkpoint writes were non-atomic, validation noise (14.7%) exceeded the effects Gates P/Q reported, and 8 of 15 checkpoints had been unloadable since Gate N. All fixed; context raised 256->512 for +40% throughput |
-| V | WikiText-103 shakedown (8k steps): PPL 270.99 -> 87.85; MTP ratio confirmed 1.02-1.06 under real training; fused MLA attention (3.10x on the layer); batch and optimizer sizing that actually fits VRAM |
-| W | **2-epoch WikiText-103 run: 229.4M tokens, validation perplexity 41.35**, 2.12x better than the shakedown; MTP ratio rising to 1.153; routing entropy healthy across all 64,000 steps |
+| A | MLA reference and cache equivalence |
+| B | Shared plus routed MoE mechanics |
+| C | Decoder integration |
+| D | Depth-1 MTP |
+| E | Cached and uncached generation proven token-identical |
+| F | AMP training and checkpoint mechanics |
+| G | Full train, checkpoint, resume, generate lifecycle |
+| H | WikiText-2 corpus smoke test, provenance hashing |
+| I | 1M-token dense control, PPL 598.27 |
+| J | 1M-token dense against 4-expert top-1 MoE |
+| K | Load-entropy diagnostic; found a layer collapsing to 0.32 |
+| L | Swept bias update rate; 1e-4 beat the literature's 1e-3 at this scale |
+| M | Top-2 routing, 2.7% better perplexity for zero extra stored parameters |
+| N | Dense-layer prefix compute-matched to MoE active FLOPs; first attempt was confounded |
+| O | Scale-up to Configuration B, 15M to 155M parameters |
+| P | Swept `route_scale`; V3's own 2.5 measured worst, 0.75 won |
+| Q | MTP weight annealing; conclusion later invalidated by Gate U |
+| R | MLA weight absorption matched to V3's inference code; fixed a VRAM bug that had produced a wrong conclusion in Gate O |
+| S | Fixed a tokenizer decoder bug that had blocked all readable output since Gate H |
+| T | Sorted MoE dispatch, 25.7% faster training and 1.9x faster decode, bit-exact. The textbook grouped-GEMM fix measured worse and was rejected |
+| U | Pre-run audit: found the MTP objective was degenerate, checkpoint writes were not atomic, validation noise exceeded the effects two gates had reported, and 8 of 15 checkpoints had been unloadable since Gate N |
+| V | WikiText-103 shakedown, PPL 270.99 to 87.85; fused attention, 3.10x on the MLA layer |
+| W | **2 epochs of WikiText-103, 229.4M tokens, validation perplexity 41.35** |
 
-Full detail, measured numbers, and citations are in each `experiments/GATE_<letter>_*.md`.
+Measured numbers and citations are in each `experiments/GATE_<letter>_*.md`.
 
 ## Roadmap
 
-**Next up — Gate V: WikiText-103 training run.** `data_v3_103/` already holds 115,241,113 train tokens (50x
-WikiText-2). This attacks both findings from Gate S at once: the model is undertrained (no run has exceeded ~4M
-tokens) and domain-limited. After Gates T and U, throughput is 11,501 tok/s at double the context, so one epoch
-is ~2.8 h and the Chinchilla-optimal budget for this model's ~36M *active* parameters (720M tokens) is ~17.4 h.
+**Serving.** The 1.8GB checkpoint is 1185MB of optimizer state. An inference-only export is 592MB, and int8 with
+a scale per 32 values is about 165MB. Round-tripping this model's weights through int8 gives 0.46% to 0.93%
+relative error by tensor group, so the perplexity cost needs measuring against the 41.35 baseline before
+anything ships.
 
-**Then Gate W: MTP speculative decoding.** Gate U made this possible by fixing the MTP objective; V3 reports
-85-90% draft acceptance and 1.8x TPS from the same mechanism.
+**MTP speculative decoding.** Gate U fixed the objective and Gate W confirmed it works: the MTP-to-main loss
+ratio rose from 1.033 to 1.153 across the run, which is what a working second-token predictor does. DeepSeek
+reports 85-90% draft acceptance and 1.8x tokens per second from this mechanism.
 
-Two directions remain open after that:
+**Two defects Gate W exposed.** `train_tokens.pt` stores 115M tokens as int64, using 922MB where uint16 would
+use 230MB; the paging that caused halved throughput mid-run. And `v3_cli.py` writes its final checkpoint from
+training history, so it carries no validation perplexity.
 
-1. **Phase 2 — YaRN context extension.** Two staged fine-tuning phases extending context, applied only to the
-   decoupled RoPE key (matches this project's MLA split). V3's `s=40, α=1, β=32` need scaling down from its
-   4K->32K->128K schedule to this project's much smaller base context.
-2. **Phase 3 — SFT + GRPO-based RL post-training.** Needs two decisions first: an instruction-tuning dataset for
-   SFT (with the same provenance diligence as WikiText-2), and a verifiable-reward toy task for RL sized to what
-   a 155M-parameter model can actually do (real math/code reasoning is out of reach even at this scale) —
-   R1-Zero's rule-based accuracy+format reward, not a learned reward model.
+**Phase 2, YaRN context extension.** Staged fine-tuning applied to the decoupled RoPE key alone. V3's `s=40,
+a=1, b=32` need scaling down from its 4K to 128K schedule.
 
-The MoE dispatch efficiency item flagged in Gates O and R was resolved by Gate T.
-
-## Checkpoints
-
-Trained checkpoints (up to ~1.9GB each with optimizer state) are hosted on Hugging Face Hub, not in this repo —
-see `checkpoints/README.md` for the full list and the exact command to regenerate any of them.
+**Phase 3, SFT and GRPO post-training.** Needs an instruction-tuning dataset chosen with the same provenance
+diligence as WikiText-2, and a verifiable-reward task sized to what a 155M-parameter model can do.
 
 ## Environment
 
-Developed on Windows 11, Python 3.13, PyTorch 2.13.0+cu130, RTX 3050 Laptop 6GB (Ampere, compute capability 8.6).
-`uv` manages the environment (`pyproject.toml` + `uv.lock`).
+Windows 11, Python 3.13, PyTorch 2.13.0+cu130, RTX 3050 Laptop 6GB (Ampere, compute capability 8.6). `uv`
+manages the environment through `pyproject.toml` and `uv.lock`.
 
 ## License
 
-Code is licensed under Apache 2.0 (see `LICENSE`). Trained checkpoints on Hugging Face Hub carry the same
-license. The WikiText-2 training data itself is separately licensed CC BY-SA 4.0 / GFDL as listed by the
-[Salesforce/wikitext dataset card](https://huggingface.co/datasets/Salesforce/wikitext) — unaffected by the
-code/weights license above.
+Apache 2.0, see `LICENSE`. Checkpoints on Hugging Face carry the same license. WikiText is licensed separately
+as CC BY-SA 4.0 / GFDL, listed on the
+[Salesforce/wikitext dataset card](https://huggingface.co/datasets/Salesforce/wikitext).
