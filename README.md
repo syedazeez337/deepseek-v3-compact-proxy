@@ -17,9 +17,9 @@ gates below found that a value tuned at V3's scale (256 experts, huge batches) a
 scale, and the smaller value that measured better became the new default. Failures are recorded, not hidden:
 several gates below describe an approach that didn't work, or a bug that was found and fixed, alongside what did.
 
-## Current status (2026-08-05)
+## Current status (2026-08-06)
 
-Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate U. The model is at
+Phase 1 of the fidelity roadmap — pretraining architecture — is complete through Gate W. The model is at
 **Configuration B**:
 
 ```text
@@ -31,10 +31,16 @@ mtp_weight=0.3 annealed to 0.1 at 67.6% of training (V3's own schedule)
 ~155M parameters, absorbed MLA decode (matches V3's real inference/model.py "absorb" path)
 ```
 
-Best measured result: **292.54 validation perplexity** on WikiText-2 (`checkpoints/..._gateq_mtp_anneal.pt`,
-hosted on Hugging Face — see below). At this perplexity the model produces grammatically fluent but topically
-incoherent completions — see `experiments/GATE_S_READABLE_GENERATION.md` for a real example and honest
-interpretation of what "ready" would actually require.
+Best measured result: **41.35 validation perplexity** on WikiText-103
+(`checkpoints/compact_v3_wikitext103_2ep.pt`, 229.4M tokens, 2 epochs, Gate W). Note this is not comparable to
+the earlier 292.54 figure, which was WikiText-2 validation with a WikiText-2 tokenizer at context 264 — a
+different corpus, tokenizer and denominator. The comparable predecessor is Gate V's shakedown at 87.85 on the
+identical setup, so Gate W is 2.12x better.
+
+At 41.35 the model produces locally coherent Wikipedia-style prose that commits to specifics from the prompt,
+but still drifts across paragraphs and invents facts freely. Word-level equivalent is 67.1 (fertility 1.13,
+measured), against 29.4 for a published 6-layer 156M decoder — roughly 2.3x off a well-trained model of the
+same shape.
 
 **What's next** (see "Roadmap" below): Gate U, the WikiText-103 training run, then Phase 2 (YaRN context
 extension) and Phase 3 (SFT + GRPO-based RL post-training).
@@ -116,6 +122,8 @@ are a record of what was true at the time, not live links. The table above maps 
 | S | Fixed a tokenizer decoder bug that had blocked all readable output; added `complete.py`; first real prompt-in/text-out check on the best checkpoint |
 | T | Batched MoE dispatch: removed a per-expert device sync for +25.7% training and ~1.9x decode throughput, bit-exact. The textbook grouped-GEMM fix measured *worse* and was rejected (padding cost scales with routing imbalance) |
 | U | Pre-run audit. Found the MTP objective was degenerate (the head had learned the identity map, 100% top-1 on its own input), checkpoint writes were non-atomic, validation noise (14.7%) exceeded the effects Gates P/Q reported, and 8 of 15 checkpoints had been unloadable since Gate N. All fixed; context raised 256->512 for +40% throughput |
+| V | WikiText-103 shakedown (8k steps): PPL 270.99 -> 87.85; MTP ratio confirmed 1.02-1.06 under real training; fused MLA attention (3.10x on the layer); batch and optimizer sizing that actually fits VRAM |
+| W | **2-epoch WikiText-103 run: 229.4M tokens, validation perplexity 41.35**, 2.12x better than the shakedown; MTP ratio rising to 1.153; routing entropy healthy across all 64,000 steps |
 
 Full detail, measured numbers, and citations are in each `experiments/GATE_<letter>_*.md`.
 
