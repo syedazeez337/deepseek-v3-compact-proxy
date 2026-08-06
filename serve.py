@@ -21,7 +21,7 @@ import torch
 from tokenizers import Tokenizer
 
 from compact_v3.config import config_from_checkpoint
-from compact_v3.data import load_tokenizer
+from compact_v3.data import load_tokenizer, resolve_tokenizer_path
 from compact_v3.generation import greedy_next_token, sample_next_token
 from compact_v3.model import CompactV3Model
 
@@ -42,50 +42,12 @@ class Engine:
         self.step = payload.get("step")
         self.checkpoint_name = checkpoint.name
 
-        resolved = self._resolve_tokenizer(tokenizer_path, payload)
+        resolved = resolve_tokenizer_path(tokenizer_path, payload)
         self.tokenizer: Tokenizer = load_tokenizer(resolved)
         self.tokenizer_name = str(resolved)
 
         metrics = payload.get("metrics") or {}
         self.validation_perplexity = metrics.get("validation_perplexity")
-
-    @staticmethod
-    def _resolve_tokenizer(requested: Path | None, payload: dict) -> Path:
-        """Find the tokenizer, and say something useful when it is missing.
-
-        The recorded path is wherever the machine that trained the checkpoint
-        kept it, so it rarely exists after a download. Naming the candidates
-        beats a bare "cannot find the file specified".
-        """
-        recorded = (payload.get("metrics") or {}).get("tokenizer_path")
-        fallbacks = [
-            Path("checkpoints/tokenizer_wikitext103.json"),
-            Path("data_v3_103/tokenizer.json"),
-            Path("data_v3/tokenizer.json"),
-        ]
-
-        if requested is not None:
-            if requested.exists():
-                return requested
-            candidates = ([Path(recorded)] if recorded else []) + fallbacks
-            found = list(dict.fromkeys(str(p) for p in candidates if p.exists()))
-            hint = f"  found instead: {', '.join(found)}" if found else (
-                "  none found locally; download one with:\n"
-                "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
-                "tokenizer_wikitext103.json --local-dir checkpoints")
-            raise FileNotFoundError(f"--tokenizer {requested} does not exist.\n{hint}")
-
-        if recorded and Path(recorded).exists():
-            return Path(recorded)
-        for candidate in fallbacks:
-            if candidate.exists():
-                return candidate
-        raise FileNotFoundError(
-            f"no tokenizer found. The checkpoint records {recorded!r}, which is not on this machine.\n"
-            "  download it with:\n"
-            "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
-            "tokenizer_wikitext103.json --local-dir checkpoints\n"
-            "  or point at your own with --tokenizer")
 
     def info(self) -> dict:
         return {

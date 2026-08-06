@@ -50,84 +50,89 @@ questions.
 
 ## Install
 
+`uv` handles Python and every dependency, so this is the only thing to install first.
+
+**Windows (PowerShell):**
+
 ```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS and Linux:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Restart the shell, then clone and set up:
+
+```bash
 git clone https://github.com/syedazeez337/deepseek-v3-compact-proxy.git
 cd deepseek-v3-compact-proxy
 uv sync
+```
+
+`uv sync` fetches Python 3.13 and everything else, including the right PyTorch build for your platform: CUDA 13.0
+on Windows and Linux, the PyPI build on macOS, which runs on CPU or MPS. Nothing else to configure.
+
+Check it works:
+
+```bash
 uv run pytest -q tests
 ```
 
-87 tests, around a minute on an idle 6GB GPU. CUDA is optional; the suite skips GPU tests without it.
+90 tests, around a minute. CUDA is optional and GPU tests skip without it.
 
 ## Get a checkpoint
 
-Checkpoints are too large for git and live on Hugging Face:
+Checkpoints live on Hugging Face:
 **[huggingface.co/syedazeez/deepseek-v3-compact-proxy](https://huggingface.co/syedazeez/deepseek-v3-compact-proxy)**
 
 `compact_v3_wikitext103_2ep.pt` is the one to want: 41.35 perplexity, the Gate W result. Download it together
-with `tokenizer_wikitext103.json`, which it was trained with.
+with `tokenizer_wikitext103.json`, which it was trained with. Decoding with a different tokenizer produces text
+that looks like noise rather than raising an error.
 
-Any of these three work.
+Same command on every platform:
 
-**With the Hugging Face CLI:**
-
-```powershell
-uv run pip install huggingface_hub[cli]
-uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy `
-  compact_v3_wikitext103_2ep.pt tokenizer_wikitext103.json --local-dir checkpoints
+```bash
+uv run pip install "huggingface_hub[cli]"
+uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy compact_v3_wikitext103_2ep.pt tokenizer_wikitext103.json --local-dir checkpoints
 ```
 
-**With Python:**
+Or without the CLI:
 
-```powershell
+```bash
 uv run python -c "from huggingface_hub import hf_hub_download as d; [d('syedazeez/deepseek-v3-compact-proxy', f, local_dir='checkpoints') for f in ['compact_v3_wikitext103_2ep.pt','tokenizer_wikitext103.json']]"
 ```
 
-**With a direct download:**
-
-```powershell
-$base = "https://huggingface.co/syedazeez/deepseek-v3-compact-proxy/resolve/main"
-Invoke-WebRequest "$base/compact_v3_wikitext103_2ep.pt" -OutFile "checkpoints\compact_v3_wikitext103_2ep.pt"
-Invoke-WebRequest "$base/tokenizer_wikitext103.json" -OutFile "checkpoints\tokenizer_wikitext103.json"
-```
-
-Both files must end up in `checkpoints/`. Every command below takes those paths directly, so nothing else needs
-configuring.
-
-Checkpoints are around 1.8GB because they carry AdamW optimizer state for resuming training. The weights alone
-are 592MB. `checkpoints/README.md` lists every checkpoint, the gate that produced it, and the command that
-regenerates it.
-
-**You also need the matching tokenizer.** Each checkpoint records which one it was trained with. Regenerate it
-by running `v3_cli.py` once with `--real-corpus` and the matching `--dataset-config`, which downloads the corpus
-and fits the tokenizer, or copy `data_v3_103/tokenizer.json` from a machine that has it. Decoding with the wrong
-tokenizer produces text that looks like noise.
+Both files land in `checkpoints/`. The download is 1.8GB, because checkpoints carry AdamW optimizer state for
+resuming training; the weights alone are 592MB. `checkpoints/README.md` lists every checkpoint, the gate that
+produced it, and the command that regenerates it.
 
 ## Serve it in a browser
 
-```powershell
-uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt
+```bash
+uv run python serve.py --checkpoint checkpoints/compact_v3_wikitext103_2ep.pt
 ```
 
-Open <http://127.0.0.1:8000>. Ctrl-C stops it.
+Open <http://127.0.0.1:8000>. Ctrl-C stops it. Forward slashes work on every platform, including PowerShell.
 
-That finds the tokenizer on its own: it tries the path recorded in the checkpoint, then
-`checkpoints/tokenizer_wikitext103.json`, then `data_v3_103/tokenizer.json`. Pass `--tokenizer` only to
-override that search. Getting it wrong is loud rather than silent, since the error names every tokenizer it
-did find.
+The tokenizer is found automatically: the path recorded in the checkpoint, then
+`checkpoints/tokenizer_wikitext103.json`, then the corpus caches. Pass `--tokenizer` only to override that. A
+wrong path fails loudly and lists every tokenizer it did find.
 
 | flag | default | notes |
 |---|---|---|
 | `--checkpoint` | `checkpoints/compact_v3_wikitext103_shakedown.pt` | any `.pt` file |
-| `--device` | `cuda` when available | use `cpu` if the GPU is busy training |
+| `--device` | `cuda` when available | `cpu` works everywhere, including Macs |
 | `--port` | `8000` | |
-| `--tokenizer` | read from the checkpoint | override if the recorded path is wrong |
+| `--tokenizer` | resolved from the checkpoint | override the search |
 
-Running on CPU costs nothing here. Single-token decode is latency-bound rather than compute-bound, so CPU
-measures about 65 tok/s against 49 tok/s on GPU:
+Running on CPU costs little. Single-token decode is latency-bound rather than compute-bound, so CPU measures
+about 65 tok/s against 49 tok/s on GPU. Use it when the GPU is busy training:
 
-```powershell
-uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt --device cpu
+```bash
+uv run python serve.py --checkpoint checkpoints/compact_v3_wikitext103_2ep.pt --device cpu
 ```
 
 The page is a completion playground rather than a chat window, because a base model with no instruction tuning
@@ -144,16 +149,28 @@ Temperature between 0.7 and 0.9 works well. Greedy decoding tends to loop at thi
 
 ## Complete a prompt from the command line
 
+**Windows (PowerShell):**
+
 ```powershell
 uv run python complete.py "The bridge was built in" `
-  --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt `
-  --tokenizer data_v3_103\tokenizer.json `
-  --max-new-tokens 40 --do-sample --temperature 0.8 --top-k 40 --device cuda
+  --checkpoint checkpoints/compact_v3_wikitext103_2ep.pt `
+  --max-new-tokens 40 --do-sample --temperature 0.8 --top-k 40
 ```
 
-Prints JSON with the prompt, the completion, the continuation alone, and tokens per second.
+**macOS and Linux:**
+
+```bash
+uv run python complete.py "The bridge was built in" \
+  --checkpoint checkpoints/compact_v3_wikitext103_2ep.pt \
+  --max-new-tokens 40 --do-sample --temperature 0.8 --top-k 40
+```
+
+Prints JSON with the prompt, the completion, the continuation alone, and tokens per second. Add `--device cpu`
+on a machine without CUDA.
 
 ## Train
+
+**Windows (PowerShell):**
 
 ```powershell
 uv run python v3_cli.py `
@@ -162,7 +179,19 @@ uv run python v3_cli.py `
   --batch-size 7 --sequence-length 512 `
   --checkpoint-every 4000 --eval-batches 68 --generate 64 `
   --device cuda --enable-mtp `
-  --checkpoint checkpoints\my_run.pt
+  --checkpoint checkpoints/my_run.pt
+```
+
+**macOS and Linux:**
+
+```bash
+uv run python v3_cli.py \
+  --real-corpus --dataset-config wikitext-103-raw-v1 --dataset-cache-dir data_v3_103 \
+  --steps 64000 --warmup-steps 1000 \
+  --batch-size 7 --sequence-length 512 \
+  --checkpoint-every 4000 --eval-batches 68 --generate 64 \
+  --device cuda --enable-mtp \
+  --checkpoint checkpoints/my_run.pt
 ```
 
 First run downloads WikiText-103, fits a 32K byte-level BPE tokenizer on the train split alone, and caches both
@@ -176,8 +205,9 @@ temp file and rename into place, so an interrupted write cannot destroy the prev
 value.
 
 Gate W took about 14 hours on an RTX 3050 6GB at batch 7 and sequence 512, across an interruption and resume,
-with throughput degrading part way through for reasons recorded in its gate document. Batch 8 exceeds VRAM and runs slower
-because Windows spills to shared system memory rather than raising an out-of-memory error.
+with throughput degrading part way through for reasons recorded in its gate document. Batch 8 exceeds VRAM on
+that card and runs slower, because Windows spills to shared system memory rather than raising an
+out-of-memory error. Training needs CUDA; a Mac can serve a checkpoint but not train one at this scale.
 
 ## Module map
 
@@ -203,7 +233,7 @@ The library is `src/compact_v3/`. The three CLI entry points stay at the repo ro
 | `serve.py` | Playground server, streams over SSE, standard library only |
 | `ui/index.html` | Browser playground |
 | `experiments/` | One document per gate: specification, method, numbers, interpretation |
-| `tests/` | 87 tests |
+| `tests/` | 90 tests |
 
 Gate documents name modules by the flat filenames they had before the package restructure (`v3_config.py`,
 `moe_v3.py`, and so on). Those names are left as written because they record what was true at the time. The

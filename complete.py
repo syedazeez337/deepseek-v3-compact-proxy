@@ -9,7 +9,7 @@ import torch
 from tokenizers import Tokenizer
 
 from compact_v3.model import CompactV3Model
-from compact_v3.data import load_tokenizer
+from compact_v3.data import load_tokenizer, resolve_tokenizer_path
 from compact_v3.config import CompactV3Config, config_from_checkpoint
 from compact_v3.generation import generate_cached
 
@@ -18,7 +18,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Complete a text prompt using a trained checkpoint.")
     parser.add_argument("prompt", type=str)
     parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--tokenizer", type=Path, default=Path("data_v3/tokenizer.json"))
+    parser.add_argument("--tokenizer", type=Path, default=None,
+                        help="defaults to the tokenizer recorded in the checkpoint")
     parser.add_argument("--max-new-tokens", type=int, default=32)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top-k", type=int, default=None)
@@ -66,8 +67,8 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     args = build_parser().parse_args()
     device = torch.device(args.device)
-    tokenizer = load_tokenizer(args.tokenizer)
     payload = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    tokenizer = load_tokenizer(resolve_tokenizer_path(args.tokenizer, payload))
     config = config_from_checkpoint(payload["model_config"])
     model = CompactV3Model(config).to(device)
     model.load_state_dict(payload["model"])

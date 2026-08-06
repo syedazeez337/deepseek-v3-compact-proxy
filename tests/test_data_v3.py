@@ -1,3 +1,4 @@
+import pytest
 import json
 
 import torch
@@ -97,3 +98,45 @@ def test_evaluate_tokens_covers_whole_split_when_unbounded() -> None:
     result = evaluate_tokens(model, tokens, 4, 16, torch.device("cpu"))
     assert result["batches"] == 5  # ceil(17 windows / batch 4)
     assert result["windows"] == 17
+
+
+def test_resolve_tokenizer_prefers_the_recorded_path(tmp_path) -> None:
+    """A checkpoint must decode with the tokenizer it was trained with.
+
+    Decoding with the wrong one yields plausible-looking noise rather than an
+    error, so complete.py defaulting to data_v3/tokenizer.json silently
+    produced garbage for WikiText-103 checkpoints.
+    """
+    from compact_v3.data import resolve_tokenizer_path
+
+    recorded = tmp_path / "trained_with.json"
+    recorded.write_text("{}", encoding="utf-8")
+    payload = {"metrics": {"tokenizer_path": str(recorded)}}
+    assert resolve_tokenizer_path(None, payload) == recorded
+
+    explicit = tmp_path / "explicit.json"
+    explicit.write_text("{}", encoding="utf-8")
+    assert resolve_tokenizer_path(explicit, payload) == explicit
+
+
+def test_resolve_tokenizer_names_what_it_found(tmp_path) -> None:
+    from compact_v3.data import resolve_tokenizer_path
+
+    recorded = tmp_path / "real.json"
+    recorded.write_text("{}", encoding="utf-8")
+    payload = {"metrics": {"tokenizer_path": str(recorded)}}
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        resolve_tokenizer_path(tmp_path / "missing.json", payload)
+    message = str(excinfo.value)
+    assert "missing.json" in message
+    assert str(recorded) in message, "the error must point at a tokenizer that does exist"
+
+
+def test_resolve_tokenizer_explains_when_nothing_exists(tmp_path, monkeypatch) -> None:
+    """Run from an empty directory so the relative fallbacks cannot resolve."""
+    from compact_v3.data import resolve_tokenizer_path
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(FileNotFoundError, match="huggingface-cli download"):
+        resolve_tokenizer_path(None, {"metrics": {"tokenizer_path": "absent.json"}})

@@ -20,5 +20,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/compact_v3"]
 
+# CUDA wheels exist for Windows and Linux only. Marking the index explicit and
+# scoping torch to those platforms lets macOS resolve torch from PyPI instead,
+# so `uv sync` works on all three rather than failing on a missing wheel.
 [[tool.uv.index]]
+name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]

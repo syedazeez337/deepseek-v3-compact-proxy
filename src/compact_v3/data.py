@@ -220,4 +220,46 @@ def load_tokenizer(path: str | Path) -> Tokenizer:
     return tokenizer
 
 
-__all__ = ["DataConfig", "PackedCorpus", "PackedTokenProvider", "evaluate_provider", "evaluate_tokens", "load_tokenizer", "prepare_wikitext2"]
+TOKENIZER_FALLBACKS = (
+    Path("checkpoints/tokenizer_wikitext103.json"),
+    Path("data_v3_103/tokenizer.json"),
+    Path("data_v3/tokenizer.json"),
+)
+
+
+def resolve_tokenizer_path(requested: str | Path | None, payload: dict) -> Path:
+    """Pick the tokenizer a checkpoint was trained with.
+
+    Decoding with the wrong tokenizer produces plausible-looking noise rather
+    than an error, so a wrong default is worse than a missing file. The
+    checkpoint records the path it was trained with; that is tried first, then
+    the download location, then the corpus caches.
+    """
+    recorded = (payload.get("metrics") or {}).get("tokenizer_path")
+
+    if requested is not None:
+        requested = Path(requested)
+        if requested.exists():
+            return requested
+        candidates = ([Path(recorded)] if recorded else []) + list(TOKENIZER_FALLBACKS)
+        found = list(dict.fromkeys(str(p) for p in candidates if p.exists()))
+        hint = f"  found instead: {', '.join(found)}" if found else (
+            "  none found locally; download one with:\n"
+            "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
+            "tokenizer_wikitext103.json --local-dir checkpoints")
+        raise FileNotFoundError(f"--tokenizer {requested} does not exist.\n{hint}")
+
+    if recorded and Path(recorded).exists():
+        return Path(recorded)
+    for candidate in TOKENIZER_FALLBACKS:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        f"no tokenizer found. The checkpoint records {recorded!r}, which is not on this machine.\n"
+        "  download it with:\n"
+        "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
+        "tokenizer_wikitext103.json --local-dir checkpoints\n"
+        "  or point at your own with --tokenizer")
+
+
+__all__ = ["DataConfig", "PackedCorpus", "PackedTokenProvider", "evaluate_provider", "evaluate_tokens", "load_tokenizer", "prepare_wikitext2", "resolve_tokenizer_path"]
