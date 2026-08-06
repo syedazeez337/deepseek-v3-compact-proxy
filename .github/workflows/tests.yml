@@ -1,0 +1,33 @@
+name: tests
+
+on:
+  push:
+    branches: [master, mlops-experiments]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is the cheap runner here, and not for the usual reasons:
+        # pyproject.toml scopes torch to the pytorch-cu130 index on Windows and
+        # Linux only, so a Linux runner downloads the whole CUDA stack (15
+        # nvidia-* wheels, several GB) to run tests that skip without a GPU.
+        # macOS resolves torch from PyPI instead and pulls zero nvidia packages.
+        # Measured with: uv pip compile --python-platform {linux,macos} ...
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - run: uv sync --frozen
+
+      - run: uv run pytest -q tests

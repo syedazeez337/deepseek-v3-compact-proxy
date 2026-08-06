@@ -1,0 +1,2 @@
+# Exported weights are large binaries, same rule as checkpoints/*.pt.
+exports/
