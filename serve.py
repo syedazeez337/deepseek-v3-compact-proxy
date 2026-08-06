@@ -42,7 +42,7 @@ class Engine:
         self.step = payload.get("step")
         self.checkpoint_name = checkpoint.name
 
-        resolved = tokenizer_path or self._tokenizer_from_payload(payload)
+        resolved = self._resolve_tokenizer(tokenizer_path, payload)
         self.tokenizer: Tokenizer = load_tokenizer(resolved)
         self.tokenizer_name = str(resolved)
 
@@ -50,15 +50,42 @@ class Engine:
         self.validation_perplexity = metrics.get("validation_perplexity")
 
     @staticmethod
-    def _tokenizer_from_payload(payload: dict) -> Path:
-        """Checkpoints written by v3_cli record the tokenizer they were trained with."""
+    def _resolve_tokenizer(requested: Path | None, payload: dict) -> Path:
+        """Find the tokenizer, and say something useful when it is missing.
+
+        The recorded path is wherever the machine that trained the checkpoint
+        kept it, so it rarely exists after a download. Naming the candidates
+        beats a bare "cannot find the file specified".
+        """
         recorded = (payload.get("metrics") or {}).get("tokenizer_path")
+        fallbacks = [
+            Path("checkpoints/tokenizer_wikitext103.json"),
+            Path("data_v3_103/tokenizer.json"),
+            Path("data_v3/tokenizer.json"),
+        ]
+
+        if requested is not None:
+            if requested.exists():
+                return requested
+            candidates = ([Path(recorded)] if recorded else []) + fallbacks
+            found = list(dict.fromkeys(str(p) for p in candidates if p.exists()))
+            hint = f"  found instead: {', '.join(found)}" if found else (
+                "  none found locally; download one with:\n"
+                "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
+                "tokenizer_wikitext103.json --local-dir checkpoints")
+            raise FileNotFoundError(f"--tokenizer {requested} does not exist.\n{hint}")
+
         if recorded and Path(recorded).exists():
             return Path(recorded)
-        for candidate in (Path("data_v3_103/tokenizer.json"), Path("data_v3/tokenizer.json")):
+        for candidate in fallbacks:
             if candidate.exists():
                 return candidate
-        raise FileNotFoundError("no tokenizer found; pass --tokenizer explicitly")
+        raise FileNotFoundError(
+            f"no tokenizer found. The checkpoint records {recorded!r}, which is not on this machine.\n"
+            "  download it with:\n"
+            "    uv run huggingface-cli download syedazeez/deepseek-v3-compact-proxy "
+            "tokenizer_wikitext103.json --local-dir checkpoints\n"
+            "  or point at your own with --tokenizer")
 
     def info(self) -> dict:
         return {

@@ -106,13 +106,15 @@ tokenizer produces text that looks like noise.
 ## Serve it in a browser
 
 ```powershell
-uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt `
-  --tokenizer checkpoints\tokenizer_wikitext103.json
+uv run python serve.py --checkpoint checkpoints\compact_v3_wikitext103_2ep.pt
 ```
 
 Open <http://127.0.0.1:8000>. Ctrl-C stops it.
 
-Drop `--tokenizer` if you trained the checkpoint yourself, since it records the path it was trained with.
+That finds the tokenizer on its own: it tries the path recorded in the checkpoint, then
+`checkpoints/tokenizer_wikitext103.json`, then `data_v3_103/tokenizer.json`. Pass `--tokenizer` only to
+override that search. Getting it wrong is loud rather than silent, since the error names every tokenizer it
+did find.
 
 | flag | default | notes |
 |---|---|---|
