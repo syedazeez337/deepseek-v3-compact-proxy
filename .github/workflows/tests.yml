@@ -30,7 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v9
+      # Pinned exactly: astral-sh/setup-uv publishes no moving `v9` major tag,
+      # only `v9.0.0`, and `@v9` fails to resolve at all.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
