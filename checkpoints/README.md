@@ -54,6 +54,13 @@ not uploaded here. Regenerate it by running `v3_cli.py --real-corpus` once, whic
 | File | Gate | Result | Doc |
 |---|---|---|---|
 | `compact_v3_wikitext103_2ep.pt` | W | 2 epochs, 229.4M tokens, **41.35 PPL** | `experiments/GATE_W_WIKITEXT103_2EPOCH.md` |
+| `compact_v3_wikitext103_shakedown.pt` | V | Shakedown, step 8100, 29.0M tokens, 87.57 PPL | `experiments/GATE_V_WIKITEXT103_SHAKEDOWN.md` |
+
+Both use `tokenizer_wikitext103.json`. Gate V's checkpoint is the shakedown run that Gate W continued from; it is
+kept because `serve.py` still names it as its default `--checkpoint`. Its 87.57 was re-measured over all 470
+validation windows, against the 87.85 recorded in the gate document: the difference is the evaluation batch
+size, not the weights, because `evaluate_tokens` averages per-batch means and so weights the final partial batch
+like a full one.
 
 Trained at batch 7, sequence 512, context 520, with MTP enabled and the loss weight annealed 0.3 to 0.1. The
 earlier 292.54 figure quoted for Gate Q is not comparable: it used WikiText-2 validation with a WikiText-2
