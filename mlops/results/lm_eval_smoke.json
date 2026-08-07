@@ -1,0 +1,26 @@
+{
+  "checkpoint": "checkpoints\\compact_v3_wikitext103_2ep.pt",
+  "tokenizer": "data_v3_103\\tokenizer.json",
+  "max_length": 520,
+  "limit": 8,
+  "seconds": 304.0,
+  "results": {
+    "wikitext": {
+      "name": "wikitext",
+      "alias": "wikitext",
+      "sample_len": 8,
+      "word_perplexity,none": 695.9217683667367,
+      "word_perplexity_stderr,none": "N/A",
+      "byte_perplexity,none": 3.541555823152658,
+      "byte_perplexity_stderr,none": "N/A",
+      "bits_per_byte,none": 1.8243832826945414,
+      "bits_per_byte_stderr,none": "N/A"
+    }
+  },
+  "n_samples": {
+    "wikitext": {
+      "original": 62,
+      "effective": 8
+    }
+  }
+}

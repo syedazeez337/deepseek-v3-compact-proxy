@@ -19,3 +19,6 @@ checkpoints/*.pt
 # caches (data_v3/, data_v3_103/, ...) created by --dataset-cache-dir.
 data_v3*/*.pt
 data_v3*/tokenizer.json
+
+# Local experiment-tracking store written by `wandb` (offline or synced).
+wandb/

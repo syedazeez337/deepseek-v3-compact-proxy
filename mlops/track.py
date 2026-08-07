@@ -5,9 +5,12 @@ still run for someone who installed neither. Every method degrades to a no-op
 rather than raising, so `MLOPS_BACKEND=none` is a supported configuration and
 not a broken one.
 
+    MLOPS_BACKEND=wandb     the default; WANDB_MODE=offline needs no account
     MLOPS_BACKEND=trackio   local SQLite + a Gradio dashboard
-    MLOPS_BACKEND=mlflow    local ./mlruns + the MLflow UI
     MLOPS_BACKEND=none      metrics still print, nothing is stored
+
+wandb and trackio share an API by design, so the two branches below are nearly
+identical and switching costs one environment variable.
 """
 from __future__ import annotations
 
@@ -21,40 +24,35 @@ class Run:
         self.backend = backend
         self.name = name
         self._impl = None
-        if backend == "trackio":
+        if backend == "wandb":
+            import wandb
+
+            self._run = wandb.init(project=project, name=name, config=_flatten(config), reinit=True)
+            self._impl = wandb
+        elif backend == "trackio":
             import trackio
 
             trackio.init(project=project, name=name, config=_flatten(config))
             self._impl = trackio
-        elif backend == "mlflow":
-            import mlflow
-
-            mlflow.set_experiment(project)
-            mlflow.start_run(run_name=name)
-            mlflow.log_params(_flatten(config))
-            self._impl = mlflow
 
     def log(self, step: int, metrics: dict[str, float]) -> None:
         clean = {key: float(value) for key, value in metrics.items() if isinstance(value, (int, float))}
-        if self.backend == "trackio":
+        if self.backend in ("wandb", "trackio"):
             self._impl.log(clean, step=step)
-        elif self.backend == "mlflow":
-            self._impl.log_metrics(clean, step=step)
 
     def summary(self, metrics: dict[str, Any]) -> None:
         """Terminal values for a run. These are what a run table sorts by."""
-        if self.backend == "trackio":
-            # Logged as a final row so the value lands on the run's chart tail
-            # and in its summary column.
-            self._impl.log({key: value for key, value in metrics.items() if isinstance(value, (int, float))})
-        elif self.backend == "mlflow":
-            self._impl.log_metrics({k: float(v) for k, v in metrics.items() if isinstance(v, (int, float))})
+        clean = {key: value for key, value in metrics.items() if isinstance(value, (int, float))}
+        if self.backend == "wandb":
+            # summary, not log: these are the run's final values, and writing
+            # them to the summary is what makes the run table sortable by them.
+            self._run.summary.update(clean)
+        elif self.backend == "trackio":
+            self._impl.log(clean)
 
     def finish(self) -> None:
-        if self.backend == "trackio":
+        if self.backend in ("wandb", "trackio"):
             self._impl.finish()
-        elif self.backend == "mlflow":
-            self._impl.end_run()
 
 
 def _flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -72,8 +70,8 @@ def _flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
 
 
 def start(project: str, name: str, config: dict[str, Any]) -> Run:
-    backend = os.environ.get("MLOPS_BACKEND", "trackio").lower()
-    if backend not in ("trackio", "mlflow", "none"):
+    backend = os.environ.get("MLOPS_BACKEND", "wandb").lower()
+    if backend not in ("wandb", "trackio", "none"):
         raise ValueError(f"unknown MLOPS_BACKEND: {backend}")
     try:
         return Run(backend, project, name, config)

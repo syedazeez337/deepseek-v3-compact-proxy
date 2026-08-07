@@ -1,0 +1,12 @@
+{
+  "checkpoint": "checkpoints\\compact_v3_wikitext103_2ep.pt",
+  "group_size": "per-row",
+  "windows": 470,
+  "fp32_perplexity": 41.3537,
+  "int8_perplexity": 41.3593,
+  "perplexity_delta": 0.0056,
+  "perplexity_delta_percent": 0.014,
+  "fp32_parameter_megabytes": 621.5,
+  "int8_parameter_megabytes": 208.6,
+  "size_reduction_percent": 66.4
+}

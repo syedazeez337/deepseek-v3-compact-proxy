@@ -9,8 +9,27 @@ dependencies = [
     "datasets>=2.19.1",
     "numpy>=2.4.4",
     "pytest>=9.1.1",
-    "tokenizers>=0.23.1",
+    # Floor relaxed from 0.23.1 for Gate X: transformers 5.x requires
+    # tokenizers<=0.23.0, and the only transformers release that accepts 0.23.1
+    # is 4.17.0 from 2022. Nothing here uses a 0.23-only API; the 90 tests pass
+    # on 0.22.x unchanged.
+    "tokenizers>=0.22.0",
     "torch>=2.13.0",
+]
+
+# Evaluation and instrumentation stack. Kept out of the default install so
+# `uv sync` still gives the lean training environment, and a machine that only
+# needs to train or serve never downloads it.
+[dependency-groups]
+eval = [
+    "transformers>=5.0",
+    "lm-eval>=0.4.12",
+    # lm_eval.models.huggingface imports accelerate at module scope, but
+    # lm-eval does not declare it as a hard dependency.
+    "accelerate>=1.0",
+    "wandb>=0.28",
+    "torchao>=0.18",
+    "safetensors>=0.8",
 ]
 
 [build-system]
