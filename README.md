@@ -123,7 +123,7 @@ wrong path fails loudly and lists every tokenizer it did find.
 
 | flag | default | notes |
 |---|---|---|
-| `--checkpoint` | `checkpoints/compact_v3_wikitext103_shakedown.pt` | any `.pt` file |
+| `--checkpoint` | `checkpoints/compact_v3_wikitext103_2ep.pt` | any `.pt` file |
 | `--device` | `cuda` when available | `cpu` works everywhere, including Macs |
 | `--port` | `8000` | |
 | `--tokenizer` | resolved from the checkpoint | override the search |

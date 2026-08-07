@@ -3,7 +3,7 @@
 Streams tokens over Server-Sent Events so generation appears as it is produced.
 Standard library only, no new dependencies.
 
-    uv run python serve.py --checkpoint checkpoints/compact_v3_wikitext103_shakedown.pt
+    uv run python serve.py --checkpoint checkpoints/compact_v3_wikitext103_2ep.pt
 
 Then open http://127.0.0.1:8000 in a browser.
 """
@@ -213,7 +213,7 @@ def make_handler(engine: Engine):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Serve a Compact V3 checkpoint with a browser playground.")
-    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/compact_v3_wikitext103_shakedown.pt"))
+    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/compact_v3_wikitext103_2ep.pt"))
     parser.add_argument("--tokenizer", type=Path, default=None,
                         help="defaults to the tokenizer recorded in the checkpoint")
     parser.add_argument("--host", default="127.0.0.1")

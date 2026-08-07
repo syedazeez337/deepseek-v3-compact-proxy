@@ -141,5 +141,6 @@ them touching the model.
   record is therefore not covered by the provenance discipline this gate is trying to establish.
 - `run_experiment.py` duplicates the training setup that `v3_cli.py` already does. That was deliberate, to keep
   this gate additive, but it is not the shape to keep.
-- MLflow was implemented in `track.py` but not exercised. Only trackio was run.
+- The tracker was switched to W&B in Gate Y, on the evidence that trackio is still flagged pre-release. The
+  MLflow branch written here was never exercised and has been removed.
 - n=2 per cell is enough to show the seed dominates, not enough to put an interval on either.

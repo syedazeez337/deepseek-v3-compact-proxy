@@ -18,6 +18,10 @@ def load() -> list[dict]:
     runs = []
     for path in sorted(RESULTS.glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
+        # The directory also holds quantization and lm-eval reports, which are
+        # not training arms and carry no config/summary pair.
+        if "config" not in payload or "summary" not in payload:
+            continue
         config = payload["config"]
         runs.append({
             "name": config["arm"],
