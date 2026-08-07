@@ -1,0 +1,855 @@
+<meta charset="utf-8">
+<title>Compact V3 &mdash; Gate W telemetry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: dark;
+    --plate:   #0e1113;   /* the ground: anodised graphite, blue-green cast */
+    --raised:  #14181b;   /* a panel sitting on the plate */
+    --well:    #090b0d;   /* a recess cut into the plate */
+    --ink:     #e8e6e0;   /* warm off-white, so text reads as printed, not emitted */
+    --ink2:    #a3a9a5;
+    --ink3:    #6a716d;
+    --ink4:    #454b48;
+    --rule:    rgba(232,230,224,.10);
+    --rule2:   rgba(232,230,224,.20);
+    --live:    #f2b544;   /* chrome accent: playhead, live values. text contrast only */
+    --s1:      #c08a20;   /* series amber   (validated, L 0.60 on this ground) */
+    --s2:      #4a90c4;   /* series blue    (validated) */
+    --cool:    #4a90c4;   /* diverging: under the balanced share */
+    --warm:    #d4553f;   /* diverging: over  */
+    --mid:     #22282c;   /* diverging midpoint, reads as "nothing" */
+    --din: Bahnschrift, "DIN Alternate", "Archivo Narrow", "Roboto Condensed",
+           "Helvetica Neue", system-ui, sans-serif;
+    --mono: "Cascadia Mono", "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --con-h: 104px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--plate); }
+  body {
+    margin: 0; background: var(--plate); color: var(--ink);
+    font-family: var(--din); font-stretch: 87.5%;
+    font-size: 15px; line-height: 1.5;
+    padding-bottom: calc(var(--con-h) + 24px);
+    -webkit-font-smoothing: antialiased;
+  }
+  .plate { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---- micro label: the instrument's engraved lettering ---- */
+  .eng { font-family: var(--din); font-size: 10px; font-weight: 600;
+         letter-spacing: .16em; text-transform: uppercase; color: var(--ink3); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---- masthead rail ---- */
+  .rail { display: flex; align-items: flex-end; justify-content: space-between;
+          gap: 28px; flex-wrap: wrap;
+          padding: 30px 0 16px; border-bottom: 1px solid var(--rule2); }
+  .rail h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .2em;
+             text-transform: uppercase; line-height: 1.3; }
+  .rail h1 small { display: block; font-size: 10px; font-weight: 600; letter-spacing: .16em;
+                   color: var(--ink3); margin-top: 5px; }
+  .spec { display: flex; gap: 0; flex-wrap: wrap; font-family: var(--mono); font-size: 10.5px;
+          color: var(--ink2); letter-spacing: .02em; }
+  .spec i { font-style: normal; padding: 0 12px; border-left: 1px solid var(--rule); }
+  .spec i:first-child { border-left: 0; padding-left: 0; }
+  .spec b { color: var(--ink3); font-weight: 400; }
+
+  /* ---- section heads ---- */
+  .sec { padding: 34px 0 0; }
+  .sechead { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+             padding-bottom: 12px; margin-bottom: 18px; border-bottom: 1px solid var(--rule); }
+  .sechead h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .18em;
+                text-transform: uppercase; }
+  .sechead p { margin: 0; font-size: 13px; color: var(--ink3); max-width: 74ch; }
+  .idx { font-family: var(--mono); font-size: 10px; color: var(--ink4); }
+
+  /* ---- deck: the live hero ---- */
+  .deck { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 34px;
+          align-items: start; padding: 30px 0 6px; }
+  .hero .eng { display: block; margin-bottom: 6px; }
+  .hero .big { font-family: var(--mono); font-size: clamp(58px, 9vw, 92px); line-height: .88;
+               font-weight: 600; color: var(--live); letter-spacing: -.03em;
+               font-variant-numeric: lining-nums; }
+  .hero .cap { font-size: 12.5px; color: var(--ink3); margin-top: 12px; max-width: 34ch;
+               min-height: 3em; }
+  .hero .cap b { color: var(--ink2); font-weight: 400; font-family: var(--mono); font-size: 12px; }
+
+  .rowout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+            background: var(--rule); border: 1px solid var(--rule); }
+  .ro { background: var(--plate); padding: 12px 14px 13px; }
+  .ro .eng { display: block; margin-bottom: 7px; font-size: 9px; }
+  .ro .v { font-family: var(--mono); font-size: 19px; font-variant-numeric: tabular-nums;
+           letter-spacing: -.01em; }
+  .ro .v.off { color: var(--ink4); }
+  .ro .u { font-family: var(--mono); font-size: 10px; color: var(--ink4); margin-top: 3px; }
+  @media (max-width: 860px) {
+    .deck { grid-template-columns: 1fr; gap: 24px; }
+    .rowout { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ---- the machine ---- */
+  .mwrap { overflow-x: auto; padding-bottom: 8px; }
+  .machine { display: flex; align-items: stretch; min-width: 880px; }
+  .stage { display: flex; flex-direction: column; }
+  .stage > .eng { margin-bottom: 8px; white-space: nowrap; }
+  .body { flex: 1; border: 1px solid var(--rule2); background: var(--raised);
+          padding: 9px 8px; display: flex; flex-direction: column; }
+  .stage.io .body { background: transparent; border-style: dashed; border-color: var(--rule); }
+  .meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink4); line-height: 1.65;
+          margin-top: 8px; white-space: nowrap; }
+  .meta em { font-style: normal; color: var(--ink2); }
+
+  .link { width: 26px; flex: none; position: relative; }
+  .link::before { content: ""; position: absolute; left: 0; right: 0; top: calc(50% + 10px);
+                  height: 1px; background: var(--rule2); }
+  .link::after { content: ""; position: absolute; right: 0; top: calc(50% + 6px);
+                 border: 4px solid transparent; border-left-color: var(--rule2); }
+
+  .bank { display: flex; flex-direction: column; gap: 1px; }
+  .cell { height: 5px; background: var(--mid); transition: background-color .3s ease; }
+  .cell.dead { background: repeating-linear-gradient(45deg,
+               transparent 0 3px, rgba(232,230,224,.055) 3px 4px); }
+  .shared { height: 7px; margin-top: 5px; background: var(--ink4);
+            border-top: 1px solid var(--rule2); }
+  .sharedlab { font-family: var(--din); font-size: 8px; font-weight: 600; letter-spacing: .13em;
+               text-transform: uppercase; color: var(--ink4); margin-top: 3px; }
+  .ent { margin-top: 9px; font-family: var(--mono); font-size: 11.5px;
+         font-variant-numeric: tabular-nums; color: var(--live); }
+  .ent.off { color: var(--ink4); }
+  .ent small { display: block; font-size: 8.5px; letter-spacing: .14em; color: var(--ink4);
+               text-transform: uppercase; font-family: var(--din); font-weight: 600; margin-top: 2px; }
+  .solid { flex: 1; min-height: 191px; background:
+           repeating-linear-gradient(0deg, var(--mid) 0 5px, transparent 5px 6px); }
+
+  /* ---- the voice ---- */
+  .well { background: var(--well); border: 1px solid var(--rule); padding: 18px 20px;
+          font-family: var(--mono); font-size: 13px; line-height: 1.85; color: var(--ink2);
+          white-space: pre-wrap; word-break: break-word; min-height: 132px; }
+  .well .p { color: var(--ink); font-weight: 600; }
+  .well .loop { color: var(--warm); }
+  .well .none { color: var(--ink4); font-style: italic; white-space: normal; }
+
+  /* ---- choice field ---- */
+  .field { display: grid; grid-template-columns: repeat(130, 1fr); gap: 2px; max-width: 740px; }
+  .tick { height: 52px; background: var(--mid); transition: background-color .3s ease; }
+  .tick.lit { background: var(--live); }
+  .fieldcap { font-size: 13px; color: var(--ink3); margin: 16px 0 0; max-width: 66ch; }
+  .fieldcap b { color: var(--ink); font-weight: 400; font-family: var(--mono); }
+
+  /* ---- flight recorder ---- */
+  .bands { position: relative; border-top: 1px solid var(--rule); }
+  .band { display: grid; grid-template-columns: 128px 1fr 78px; align-items: center;
+          border-bottom: 1px solid var(--rule); }
+  .band > * { min-width: 0; }
+  .band .eng { font-size: 9px; }
+  .band .now { font-family: var(--mono); font-size: 12px; text-align: right;
+               font-variant-numeric: tabular-nums; color: var(--live); padding-right: 2px; }
+  .band svg { display: block; width: 100%; height: 40px; }
+  .head { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--live);
+          pointer-events: none; opacity: .85; }
+
+  /* ---- routing record ---- */
+  .blockrec + .blockrec { margin-top: 20px; }
+  .brhead { display: flex; justify-content: space-between; align-items: baseline;
+            margin-bottom: 7px; gap: 12px; }
+  .brhead .r { font-family: var(--mono); font-size: 10px; color: var(--ink4); }
+  .rows { display: flex; flex-direction: column; gap: 2px; }
+  .rrow { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px;
+          cursor: pointer; }
+  .rrow .st { font-family: var(--mono); font-size: 9px; color: var(--ink4); text-align: right;
+              font-variant-numeric: tabular-nums; }
+  .rrow .cells { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; }
+  .rrow .cells div { height: 9px; }
+  .rrow.on .st { color: var(--live); }
+  .rrow.on .cells { outline: 1px solid var(--rule2); outline-offset: 2px; }
+  .rrow:hover .st { color: var(--ink2); }
+
+  .scale { display: flex; align-items: center; gap: 10px; margin-top: 16px;
+           font-family: var(--mono); font-size: 10px; color: var(--ink4); }
+  .ramp { height: 8px; width: 220px; }
+
+  /* ---- prose blocks ---- */
+  .read { font-size: 14px; color: var(--ink2); max-width: 76ch; margin: 18px 0 0; }
+  .read b { color: var(--ink); font-weight: 600; }
+  .read + .read { margin-top: 12px; }
+  .findings { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .finding { background: var(--plate); padding: 16px 18px; }
+  .finding h3 { margin: 0 0 7px; font-size: 12px; font-weight: 700; letter-spacing: .1em;
+                text-transform: uppercase; color: var(--warm); }
+  .finding p { margin: 0; font-size: 13.5px; color: var(--ink2); max-width: 84ch; }
+  .finding code { font-family: var(--mono); font-size: 12px; color: var(--ink);
+                  background: var(--well); padding: 1px 5px; }
+
+  /* ---- ledger ---- */
+  .tw { overflow-x: auto; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 11.5px;
+          font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 11px; white-space: nowrap;
+           border-bottom: 1px solid var(--rule); }
+  th { font-family: var(--din); font-size: 9px; font-weight: 600; letter-spacing: .12em;
+       text-transform: uppercase; color: var(--ink3); background: var(--raised); }
+  td { color: var(--ink2); }
+  td.k { text-align: left; color: var(--ink); }
+  td.o { color: var(--ink4); }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--raised); }
+  tbody tr.on td { background: var(--raised); color: var(--ink); }
+  tbody tr.on td.k { color: var(--live); }
+
+  footer { margin: 40px 0 0; padding: 20px 0 30px; border-top: 1px solid var(--rule2);
+           font-family: var(--mono); font-size: 10.5px; color: var(--ink4); line-height: 1.8; }
+
+  /* ---- the console: the only control ---- */
+  .console { position: fixed; left: 0; right: 0; bottom: 0; height: var(--con-h);
+             background: rgba(10,12,14,.94); backdrop-filter: blur(8px);
+             border-top: 1px solid var(--rule2); z-index: 30; }
+  .cinner { max-width: 1180px; margin: 0 auto; padding: 10px 28px 12px;
+            display: grid; grid-template-columns: 46px 1fr 156px; gap: 18px; align-items: center; }
+  .play { width: 40px; height: 40px; border: 1px solid var(--rule2); background: transparent;
+          color: var(--ink); cursor: pointer; display: grid; place-items: center;
+          transition: border-color .15s, background .15s; }
+  .play:hover { border-color: var(--live); background: rgba(242,181,68,.08); }
+  .play:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+  .play svg { width: 13px; height: 13px; fill: var(--ink); }
+  .track { position: relative; cursor: pointer; touch-action: none; }
+  .track:focus-visible { outline: 2px solid var(--live); outline-offset: 4px; }
+  .track svg { display: block; width: 100%; height: 62px; }
+  .cnow { text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink3);
+          line-height: 1.7; font-variant-numeric: tabular-nums; }
+  .cnow b { display: block; font-size: 15px; color: var(--live); font-weight: 600; }
+  @media (max-width: 700px) {
+    :root { --con-h: 92px; }
+    .cinner { grid-template-columns: 40px 1fr 96px; gap: 12px; padding: 8px 16px 10px; }
+    .plate { padding: 0 16px; }
+    .track svg { height: 50px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="plate">
+
+  <div class="rail">
+    <h1>Compact V3 &middot; Gate W
+      <small>Routing and loss telemetry &middot; 6 August 2026</small></h1>
+    <div class="spec">
+      <i><b>corpus</b> WikiText-103</i>
+      <i><b>steps</b> 64,000</i>
+      <i><b>tokens</b> 229,376,000</i>
+      <i><b>params</b> 155,271,168</i>
+      <i><b>device</b> RTX 3050 6GB</i>
+    </div>
+  </div>
+
+  <div class="deck">
+    <div class="hero">
+      <span class="eng">Validation perplexity</span>
+      <div class="big num" id="ppl">&mdash;</div>
+      <p class="cap" id="pplcap"></p>
+    </div>
+    <div class="rowout" id="readouts"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>The machine</h2>
+      <p>Every measurement on this page belongs to a place in the model. Here it is, wired
+        the way it was trained. Drag the console at the foot of the page and the instrument
+        moves with you.</p>
+    </div>
+    <div class="mwrap"><div class="machine" id="machine"></div></div>
+    <p class="read">Each of the five routed blocks is a bank of 32 experts. Every token entering a
+      block lights exactly two of them, plus the shared expert that sees everything. <b>Blue means
+      an expert took fewer than its balanced share of 224 tokens, red means more.</b> The number
+      under each bank is that block's routing entropy: 1.000 is a perfectly even split, and a
+      collapse toward a handful of experts drives it to zero.</p>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>What it writes</h2>
+      <p>The same four words, decoded at every checkpoint with the same seed. This is the part of
+        a training run that no loss curve conveys.</p>
+    </div>
+    <div class="well" id="voice"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>What perplexity means</h2>
+      <p>Not an abstract score. A count of live options.</p>
+    </div>
+    <div class="field" id="field"></div>
+    <p class="fieldcap" id="fieldcap"></p>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>Flight recorder</h2>
+      <p>Every scalar the run emitted, on one shared time axis, each band scaled to its own
+        range. The line down the stack is where you are.</p>
+    </div>
+    <div class="bands" id="bands"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>The complete routing record</h2>
+      <p>All 160 experts at all thirteen instrumented checkpoints. One row per checkpoint,
+        one column per expert. Click any row to move the instrument there.</p>
+    </div>
+    <div id="record"></div>
+    <div class="scale">
+      <span>56 tokens</span><div class="ramp" id="ramp"></div><span>896</span>
+      <span style="margin-left:10px">against the balanced 224</span>
+    </div>
+    <p class="read">The three middle blocks hold entropy above 0.99 all run and their records are
+      nearly flat: block 04 never puts fewer than 109 or more than 374 tokens on any expert.
+      <b>Specialisation lives at the two ends of the stack.</b> Blocks 02 and 06 sit at 0.95 and
+      0.96 and swing between 1 token and 862. No column stays hot down the record, and that is the
+      finding: the loss-free bias balancer keeps rotating which expert is favoured instead of
+      letting one win permanently. Gate K watched a block collapse to 0.32 on a far shorter run.
+      Nothing like it recurred across 64,000 steps.</p>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>What the run exposed</h2>
+      <p>Three defects, none of them in the model.</p>
+    </div>
+    <div class="findings">
+      <div class="finding">
+        <h3>The step counter double-counts on resume</h3>
+        <p>This run resumed at step 12,000, and every checkpoint after that reported a step 12,000
+          too high: the last one logged 76,000 for a 64,000-step run. <code>v3_cli.py</code> passes
+          <code>start_step + step</code> to the progress callback, but the step it receives is
+          already global. Every step on this page is the corrected one, recovered from
+          <code>tokens_seen / 3584</code>, which was never wrong.</p>
+      </div>
+      <div class="finding">
+        <h3>No metrics log is written</h3>
+        <p>Checkpoints keep only the last metrics dict, and the history the trainer returns is
+          discarded when the process exits. Scrub to the first three checkpoints and the instrument
+          goes dark: those are steps 4,000 to 12,000, and nothing survives of them but a perplexity
+          somebody typed into the gate document. A twelve-hour run should not depend on a terminal
+          buffer.</p>
+      </div>
+      <div class="finding">
+        <h3>Throughput decayed from 3.19 to 1.33 steps per second</h3>
+        <p>Diagnosed at step 28,000 as page faults: 11.2 GiB committed against a 257 MiB resident
+          working set, with the training tokens held as int64 when a 32,000-word vocabulary fits in
+          uint16. 922 MiB that should be 230 MiB. The GPU sat at 72 to 97 per cent utilisation and
+          60 to 63 degrees throughout: starved, not saturated.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sechead">
+      <h2>Ledger</h2>
+      <p>Every recorded number. Click a row to move the instrument.</p>
+      <span class="idx" id="ledgeridx"></span>
+    </div>
+    <div class="tw" id="ledger"></div>
+  </div>
+
+  <footer>
+    checkpoint compact_v3_wikitext103_2ep.pt &middot; step 64,000 &middot; 1777.7 MiB<br>
+    d_model 512 &middot; 6 blocks &middot; 8 heads &middot; MLA q/kv latent rank 128 &middot;
+    32 routed + 1 shared experts &middot; top-2 &middot; route_scale 0.75 &middot;
+    router bias rate 1e-4 &middot; MTP depth 1<br>
+    AdamW fused, lr 3e-4 cosine to 10 per cent, warmup 1,000, betas 0.9/0.95, wd 0.1, clip 1.0
+    &middot; batch 7 &times; 512 &middot; FP16 autocast<br>
+    torch 2.13.0+cu130 &middot; CUDA 13.0 &middot; sm_86 &middot; WikiText-103 with a 32K byte-level
+    BPE tokenizer fitted on the train split only<br>
+    source data is embedded in this page as JSON, in the script tag with id "run"
+  </footer>
+</div>
+
+<div class="console">
+  <div class="cinner">
+    <button class="play" id="play" aria-label="Play through the run">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path id="picon" d="M2 1l9 5-9 5z"/></svg>
+    </button>
+    <div class="track" id="track" tabindex="0" role="slider" aria-label="Training checkpoint"
+         aria-valuemin="0" aria-valuemax="15" aria-valuenow="0"></div>
+    <div class="cnow"><b id="cstep">&mdash;</b><span id="ctok">&mdash;</span></div>
+  </div>
+</div>
+
+<script type="application/json" id="run">{
+  "balanced": 224,
+  "tokensPerStep": 3584,
+  "early": [
+    {"step": 4000, "tokens": 14336000, "vppl": 129.62, "minEnt": 0.814, "ratio": 1.033},
+    {"step": 8000, "tokens": 28672000, "vppl": 87.88, "minEnt": 0.900, "ratio": 1.042},
+    {"step": 12000, "tokens": 43008000, "vppl": 74.39, "minEnt": 0.945, "ratio": null}
+  ],
+  "records": [
+    {"step": 16000, "main": 4.194949150085449, "mtp": 4.5080766677856445, "w": 0.3, "bal": 0.00027684474480338395, "comb": 5.547649383544922, "gn": 2.1279945373535156, "lr": 0.0002639654913759555, "vmain": 4.2054531959926384, "vppl": 67.05097801619775, "tps": 50.31,
+     "ent": [0.9622031450271606, 0.9969209432601929, 0.9961963295936584, 0.9885112047195435, 0.9630631804466248],
+     "loads": [
+       [106,224,263,111,199,169,277,444,244,639,231,133,209,264,184,175,59,310,234,146,193,229,185,263,127,257,184,251,249,2,451,156],
+       [162,247,216,233,269,229,259,246,190,253,202,218,248,239,173,235,227,185,266,262,220,293,216,187,177,225,182,258,190,244,182,235],
+       [177,219,165,262,247,215,310,196,273,237,199,187,217,270,207,219,279,238,178,242,170,214,240,253,248,202,168,255,261,228,170,222],
+       [225,193,210,303,306,197,195,159,208,292,198,227,249,316,484,241,176,155,246,155,153,254,228,212,97,235,203,220,234,219,177,201],
+       [50,199,269,227,189,302,84,93,532,253,176,145,241,326,375,389,229,363,92,315,242,233,191,233,105,122,161,222,32,431,191,156]],
+     "sample": " the top of the top of the top of the top of the top of the top of the top of the top of the top of the top of the top of the top of the top of the"},
+    {"step": 20000, "main": 4.164791107177734, "mtp": 4.451831340789795, "w": 0.3, "bal": 0.0002757280308287591, "comb": 5.500616073608398, "gn": 2.3228671550750732, "lr": 0.00024380921325609052, "vmain": 4.129533981575685, "vppl": 62.14895362772726, "tps": 17.61,
+     "ent": [0.9656931161880493, 0.9965180158615112, 0.99467533826828, 0.9927498698234558, 0.9613699913024902],
+     "loads": [
+       [49,339,202,169,349,132,233,220,299,281,328,191,209,105,160,276,357,204,136,181,260,658,178,160,186,228,262,259,182,216,8,151],
+       [198,232,199,214,200,283,279,199,174,254,172,198,228,243,232,189,310,215,232,198,247,189,212,229,185,207,246,305,230,205,194,270],
+       [185,226,263,194,247,193,212,198,224,200,239,168,270,199,199,201,200,225,191,252,403,213,284,219,230,229,265,203,185,225,148,278],
+       [174,196,160,268,242,154,170,211,210,167,189,180,250,274,151,246,263,198,251,219,206,253,213,264,404,265,277,202,245,272,241,153],
+       [356,229,190,54,137,101,199,89,182,239,232,74,230,341,201,225,211,501,200,112,225,277,79,206,166,202,358,180,567,496,129,180]],
+     "sample": " the ground . \n = = = = Other activities = = = = \n In the early 20th century , the city was home to the City of London , which was the home of the"},
+    {"step": 24000, "main": 4.13836669921875, "mtp": 4.558828830718994, "w": 0.3, "bal": 0.00025038584135472775, "comb": 5.506265640258789, "gn": 2.402953863143921, "lr": 0.00022052765498397657, "vmain": 4.070646117715275, "vppl": 58.59480950824058, "tps": 57.74,
+     "ent": [0.9827536940574646, 0.9983366131782532, 0.997749924659729, 0.9975584745407104, 0.9757525324821472],
+     "loads": [
+       [394,118,203,289,177,275,234,211,189,216,346,192,174,292,237,374,38,257,113,229,344,257,181,184,168,212,215,153,248,191,288,169],
+       [220,207,258,217,212,243,179,175,212,269,227,221,214,199,272,219,229,213,197,223,262,216,250,253,206,210,206,201,236,226,235,261],
+       [247,201,219,224,247,257,221,214,192,254,205,227,209,234,200,270,201,226,219,212,198,292,268,202,232,180,263,258,173,218,186,219],
+       [238,202,247,188,244,225,190,240,265,214,234,196,233,178,259,303,189,212,240,258,259,185,198,206,207,217,250,249,210,215,178,239],
+       [53,175,214,248,229,342,115,299,87,242,291,236,256,160,366,144,199,470,190,290,195,215,354,230,171,237,88,141,283,113,343,192]],
+     "sample": " the floor of the house . The house was built in the early 19th century , and was used as a school for the local residents . The house was demolished in the 19th century , and the"},
+    {"step": 28000, "main": 4.010216236114502, "mtp": 4.356871604919434, "w": 0.3, "bal": 0.00026410396094433963, "comb": 5.31754207611084, "gn": 2.518505573272705, "lr": 0.00019504407653106934, "vmain": 4.024546325206757, "vppl": 55.954917686717295, "tps": 54.83,
+     "ent": [0.935112714767456, 0.9970700740814209, 0.991417407989502, 0.9937297105789185, 0.9585497975349426],
+     "loads": [
+       [596,46,245,382,138,241,131,563,238,101,355,233,279,122,115,204,28,20,357,136,279,130,196,138,448,253,311,241,30,271,1,340],
+       [222,208,262,183,219,266,232,289,213,262,173,241,213,186,229,197,218,225,236,212,185,185,309,170,224,253,221,264,240,211,201,219],
+       [235,285,167,153,224,223,233,240,150,251,207,245,167,194,199,261,199,244,201,198,159,354,188,270,204,175,433,280,223,168,219,219],
+       [276,186,252,193,312,227,248,272,171,191,263,237,207,138,118,220,163,245,213,268,235,319,217,262,179,244,226,239,168,230,181,268],
+       [48,325,113,391,291,166,268,363,71,175,676,102,248,215,159,285,196,132,224,273,216,238,354,257,165,234,134,236,34,55,201,323]],
+     "sample": " the wall of the wall . The wall was built in the 16th century , and is now used as a residence . \n = = History = = \n The church was built in the 16"},
+    {"step": 32000, "main": 3.7612783908843994, "mtp": 4.206731796264648, "w": 0.3, "bal": 0.00023425018298439682, "comb": 5.023532390594482, "gn": 2.7694151401519775, "lr": 0.0001683690617955782, "vmain": 3.9703068873461556, "vppl": 53.0007936170255, "tps": 56.35,
+     "ent": [0.9477722644805908, 0.9984202980995178, 0.9956196546554565, 0.9912995100021362, 0.9567893147468567],
+     "loads": [
+       [229,317,244,71,203,115,162,183,151,141,111,211,150,295,96,200,461,546,117,187,298,105,201,192,126,193,149,176,522,136,781,99],
+       [244,211,225,246,195,235,259,244,220,231,221,195,239,242,161,242,232,249,198,258,228,244,213,196,215,179,209,235,248,222,198,234],
+       [221,229,269,171,186,249,250,221,266,249,226,208,259,291,195,203,183,164,275,225,222,222,246,237,222,254,98,225,196,257,232,217],
+       [202,230,192,222,129,204,170,197,266,246,252,198,247,182,513,233,211,215,235,162,176,204,245,255,234,222,244,266,209,216,188,203],
+       [368,175,296,117,153,181,190,100,464,244,60,113,199,164,83,232,320,642,226,131,233,210,492,241,115,152,101,91,341,174,183,377]],
+     "sample": " the floor of the room , and was taken to a room in the room . The room was designed by the art director , and was designed by the art director , John W. Wood . The room"},
+    {"step": 36000, "main": 3.902384042739868, "mtp": 4.302340030670166, "w": 0.3, "bal": 0.0002388862194493413, "comb": 5.193325042724609, "gn": 3.14666748046875, "lr": 0.00014156044260539964, "vmain": 3.9168511348612167, "vppl": 50.24199018152995, "tps": 58.50,
+     "ent": [0.9622953534126282, 0.9970235228538513, 0.9955392479896545, 0.9920191764831543, 0.9490956664085388],
+     "loads": [
+       [21,221,273,155,158,268,253,142,172,132,291,187,272,52,412,263,263,258,331,176,223,125,256,402,72,268,153,307,470,345,13,234],
+       [203,227,213,201,205,205,241,162,233,230,261,223,297,253,212,235,256,239,161,229,250,225,221,193,198,187,209,230,222,231,193,323],
+       [191,236,284,315,163,180,234,181,252,185,244,199,286,228,205,161,205,249,192,198,255,196,248,240,217,263,290,210,159,239,202,261],
+       [155,211,217,254,274,138,206,150,191,269,167,230,211,366,144,315,221,235,334,186,233,205,187,269,147,221,230,218,220,233,250,281],
+       [315,272,255,201,62,270,136,160,222,276,62,298,268,520,183,122,293,551,104,188,267,184,71,128,249,543,123,467,166,53,64,95]],
+     "sample": " a cliff , and the other members of the band were not allowed to leave . The band 's first single , \" The Last Song \" , was released in the United States on October 24 , 1967"},
+    {"step": 40000, "main": 4.074018001556396, "mtp": 4.4330949783325195, "w": 0.3, "bal": 0.00025125854881480336, "comb": 5.404197692871094, "gn": 3.2444546222686768, "lr": 0.00011568134904396714, "vmain": 3.8702757849412808, "vppl": 47.955609692302055, "tps": 55.69,
+     "ent": [0.931837797164917, 0.9928674697875977, 0.989807665348053, 0.9755998253822327, 0.946701169013977],
+     "loads": [
+       [207,288,206,410,287,22,209,152,470,86,342,105,98,60,203,10,481,638,130,343,10,95,241,355,227,237,285,189,294,266,3,219],
+       [226,221,145,244,254,209,274,288,211,109,294,183,247,283,199,207,219,240,184,244,177,191,237,175,200,273,212,221,188,168,271,374],
+       [284,188,158,185,152,317,273,267,202,226,197,183,254,297,168,197,269,298,218,212,232,182,134,172,266,388,138,159,208,316,163,265],
+       [183,248,176,312,203,223,138,193,249,191,212,220,258,128,129,294,248,168,400,184,247,187,322,201,216,201,130,98,330,152,632,95],
+       [373,285,596,43,332,116,307,78,393,207,212,84,259,235,271,408,334,167,159,146,233,237,33,198,251,72,314,85,18,100,463,159]],
+     "sample": " the front of the screen , and the camera zooms out to the camera . The camera then moves to the front of the screen , where the camera zooms out of the screen . The"},
+    {"step": 44000, "main": 3.7892391681671143, "mtp": 4.217873573303223, "w": 0.1, "bal": 0.00022496322344522923, "comb": 4.211251735687256, "gn": 2.981433391571045, "lr": 0.0000917580496670004, "vmain": 3.838559497805203, "vppl": 46.458502639837924, "tps": 55.20,
+     "ent": [0.9435411095619202, 0.9971396327018738, 0.9965993165969849, 0.9938364624977112, 0.9660708904266357],
+     "loads": [
+       [111,160,246,261,201,69,240,50,385,71,304,192,110,64,495,105,862,181,232,271,112,211,300,276,53,239,343,272,259,195,91,207],
+       [214,230,197,257,236,247,199,257,198,184,222,248,267,219,214,240,198,224,257,187,222,207,173,191,211,212,275,194,201,210,245,332],
+       [259,194,255,306,193,234,198,215,216,235,272,256,215,214,237,236,267,219,245,200,197,229,205,169,219,241,117,203,247,221,209,245],
+       [194,192,228,248,231,242,217,328,222,109,277,219,210,229,160,253,309,174,271,180,205,179,194,243,256,208,154,219,256,266,294,201],
+       [732,280,164,114,115,176,145,140,220,257,179,114,264,236,508,219,247,348,267,219,211,198,101,225,219,147,128,172,260,134,304,125]],
+     "sample": " the top of the hill , and the two @-@ story , two @-@ story , two @-@ story , two @-@ story , and two @-@ story , one @-@ story , and a two @-@ story , one"},
+    {"step": 48000, "main": 3.4911227226257324, "mtp": 3.9458069801330566, "w": 0.1, "bal": 0.00019727167091332376, "comb": 3.8859004974365234, "gn": 2.9522805213928223, "lr": 0.0000707392535102842, "vmain": 3.810838983339422, "vppl": 45.188335227279964, "tps": 55.77,
+     "ent": [0.9658543467521667, 0.9980219602584839, 0.996497631072998, 0.9917989373207092, 0.9622147679328918],
+     "loads": [
+       [134,158,311,200,143,214,142,259,325,331,229,177,246,244,291,507,43,591,192,173,303,115,154,202,92,173,182,203,111,200,407,116],
+       [202,245,252,189,266,190,196,213,202,192,211,243,231,181,282,229,207,249,222,218,228,254,241,213,209,197,261,210,276,239,217,203],
+       [215,233,199,229,206,234,273,185,157,211,231,201,175,212,258,172,234,224,316,221,199,256,212,330,217,226,252,228,219,190,230,223],
+       [211,203,243,166,237,231,239,185,174,275,205,246,253,226,292,236,208,222,220,186,156,213,269,197,97,249,195,191,199,217,439,288],
+       [59,204,226,178,193,570,167,176,630,220,202,100,260,166,274,195,184,105,171,276,198,227,485,208,100,190,132,385,239,116,162,170]],
+     "sample": " the wall of the wall , and the wall was covered with a large stone . The wall was covered with a stone wall , with a stone wall , and the wall was covered with a stone wall ."},
+    {"step": 52000, "main": 4.24812126159668, "mtp": 4.642937183380127, "w": 0.1, "bal": 0.000219870446017012, "comb": 4.712634563446045, "gn": 3.669213056564331, "lr": 0.00005345848781941217, "vmain": 3.7736072610406315, "vppl": 43.53683063125651, "tps": 58.88,
+     "ent": [0.9264784455299377, 0.9963274002075195, 0.9924119114875793, 0.9832918047904968, 0.9455836415290833],
+     "loads": [
+       [495,73,194,566,163,160,110,506,512,87,472,226,249,93,47,160,13,148,394,166,102,70,227,113,177,214,350,229,68,334,7,443],
+       [218,236,196,192,184,248,235,264,222,179,249,251,263,226,227,228,251,254,178,136,212,192,265,187,194,278,251,270,223,165,277,217],
+       [215,218,131,177,190,280,140,276,189,160,231,161,238,162,252,218,286,277,227,219,259,234,159,194,232,271,395,249,225,229,209,265],
+       [220,155,245,192,194,195,207,297,125,273,197,167,191,78,90,256,235,245,290,303,220,284,298,266,189,213,171,160,243,160,514,295],
+       [16,435,236,164,725,271,361,272,91,172,651,153,255,166,89,216,82,205,168,271,213,218,92,186,175,278,99,219,271,44,176,198]],
+     "sample": " the wall of the building , and the building was closed to the public . The building was closed in the early 1990s , and the building was closed in 1998 . \n = = = = ="},
+    {"step": 56000, "main": 3.7277987003326416, "mtp": 4.241529941558838, "w": 0.1, "bal": 0.00018869410268962383, "comb": 4.1521406173706055, "gn": 3.651294231414795, "lr": 0.000040601043460743535, "vmain": 3.7501003286417793, "vppl": 42.52534829647912, "tps": 58.71,
+     "ent": [0.9501027464866638, 0.9959903955459595, 0.9905960559844971, 0.9907485246658325, 0.9605541229248047],
+     "loads": [
+       [501,324,272,114,231,34,141,225,364,286,236,252,215,434,534,90,138,360,91,283,33,89,164,357,57,209,273,198,42,153,312,156],
+       [169,188,241,212,244,214,274,319,206,162,228,188,234,282,208,230,229,205,212,208,199,215,210,206,181,222,191,300,299,197,280,215],
+       [170,212,177,145,193,291,163,231,164,183,210,250,286,201,246,201,243,235,219,208,361,215,221,320,297,310,74,214,221,252,187,268],
+       [198,224,240,223,228,155,216,306,140,331,184,208,206,236,293,188,179,178,251,239,235,278,287,255,152,251,162,160,233,174,408,150],
+       [89,222,256,92,390,135,398,71,398,185,164,366,199,199,536,277,277,130,124,150,269,211,309,213,84,81,212,227,20,251,261,372]],
+     "sample": " the floor of the building , and the building was closed for several days . The building was later converted into a museum . \n = = = = = The Great Hall = = = = = \n"},
+    {"step": 60000, "main": 3.413926839828491, "mtp": 3.9859414100646973, "w": 0.1, "bal": 0.0001733906683512032, "comb": 3.8126943111419678, "gn": 3.1333816051483154, "lr": 0.000032676798835579056, "vmain": 3.7279858974849476, "vppl": 41.59524664864495, "tps": 57.74,
+     "ent": [0.9436566233634949, 0.9980209469795227, 0.9953783750534058, 0.9924883246421814, 0.959292471408844],
+     "loads": [
+       [351,67,240,192,140,65,261,83,121,377,149,184,146,57,717,356,452,389,175,208,287,132,251,154,118,185,191,258,502,166,6,188],
+       [236,213,227,241,239,188,210,202,227,201,229,203,213,252,209,226,236,213,240,319,240,247,219,226,251,188,216,181,198,204,203,271],
+       [199,197,297,194,185,190,324,235,247,236,234,224,241,294,182,173,167,182,217,223,203,192,194,295,178,261,295,221,193,238,242,215],
+       [215,319,224,194,351,200,221,229,284,122,201,228,217,320,182,161,255,196,293,209,191,191,179,333,192,224,219,230,226,194,150,218],
+       [539,285,203,59,131,393,453,204,160,192,66,60,194,147,421,185,547,168,232,162,211,216,58,203,241,173,158,201,335,172,171,228]],
+     "sample": " the floor of the building , and the building was closed for a few hours . The building was closed for a week , and the building was closed for a week . \n = = = = ="},
+    {"step": 64000, "main": 3.4380910396575928, "mtp": 3.963388204574585, "w": 0.1, "bal": 0.00017124763689935207, "comb": 3.8346009254455566, "gn": 3.554410219192505, "lr": 0.00003, "vmain": 3.7221624149995693, "vppl": 41.35372139990853, "tps": 60.86,
+     "ent": [0.9392811059951782, 0.9974149465560913, 0.9969704151153564, 0.9854444265365601, 0.9444823861122131],
+     "loads": [
+       [13,235,180,48,342,293,245,71,87,582,90,208,243,672,207,301,156,217,190,166,219,308,138,243,139,232,107,160,95,153,688,140],
+       [195,224,205,188,242,204,241,256,205,249,193,228,210,178,190,225,235,275,259,216,283,262,205,262,195,170,236,223,259,258,214,183],
+       [182,234,215,192,261,202,204,184,238,238,226,255,261,198,274,209,202,183,265,260,239,226,222,286,207,268,140,228,245,220,211,193],
+       [214,210,219,214,198,192,204,121,212,322,202,263,178,315,606,207,199,195,224,177,166,206,181,258,195,230,202,259,161,279,151,208],
+       [198,130,250,179,14,134,122,251,363,206,148,485,189,544,159,222,178,136,147,102,253,215,663,210,224,162,99,118,202,636,70,159]],
+     "sample": " the wall of the house , and the two men were taken to the house . The next day , the police found the body of the dead woman , and the body was found . The body was then"}
+  ],
+  "final": {
+    "prompt": "The cat sat on",
+    "completion": " the wall of the house , and the two men were taken to the house . The next day , the police found the body of the dead woman , and the body was found . The body was then taken to the house of the former St. Mary 's Hospital , where it was found to be of a different form",
+    "tps": 59.12
+  }
+}</script>
+
+<script>
+(function () {
+  "use strict";
+  const D = JSON.parse(document.getElementById("run").textContent);
+  const BAL = D.balanced, TPS = D.tokensPerStep;
+
+  /* One timeline. Sixteen checkpoints; the first three carry perplexity and nothing else.
+     `full` is null where the telemetry was lost, and the instrument reads that as dark. */
+  const T = D.early.map(e => ({
+    step: e.step, tokens: e.tokens, vppl: e.vppl, vmain: Math.log(e.vppl),
+    minEnt: e.minEnt, ratio: e.ratio, full: null
+  })).concat(D.records.map(r => ({
+    step: r.step, tokens: r.step * TPS, vppl: r.vppl, vmain: r.vmain,
+    minEnt: Math.min.apply(null, r.ent), ratio: r.mtp / r.main, full: r
+  })));
+  const N = T.length;
+  const X0 = 0, X1 = 236e6;
+  let idx = N - 1, playing = false, timer = null;
+
+  const $ = id => document.getElementById(id);
+  const fmt = (n, d) => n == null ? "—" : n.toLocaleString("en-US",
+    { minimumFractionDigits: d, maximumFractionDigits: d });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* colour of one expert cell: diverging around the balanced share, neutral midpoint */
+  function loadCol(v) {
+    const p = Math.max(-1, Math.min(1, Math.log2(Math.max(v, 4) / BAL) / 2));
+    const pole = p < 0 ? "var(--cool)" : "var(--warm)";
+    return "color-mix(in oklab, " + pole + " " + (Math.abs(p) * 100).toFixed(1) + "%, var(--mid))";
+  }
+
+  /* ---------------- the machine ---------------- */
+  const BLOCKS = [
+    { n: "02", moe: 0 }, { n: "03", moe: 1 }, { n: "04", moe: 2 },
+    { n: "05", moe: 3 }, { n: "06", moe: 4 }
+  ];
+  (function buildMachine() {
+    let h = "";
+    h += stage("io", "Tokens in", '<div class="solid" style="opacity:.5"></div>',
+      "<em>32,000</em> vocab<br><em>512</em> dims<br><em>520</em> ctx", 104);
+    h += link();
+    h += stage("", "Block 01", '<div class="solid"></div>',
+      "MLA <em>8</em> heads<br>latent <em>128</em><br>dense FFN", 92);
+    for (const b of BLOCKS) {
+      h += link();
+      let cells = "";
+      for (let e = 0; e < 32; e++) cells += '<div class="cell" data-b="' + b.moe + '" data-e="' + e + '"></div>';
+      const body = '<div class="bank">' + cells + '</div>'
+        + '<div class="shared" data-t="Shared expert|every token passes through it, by construction"></div>'
+        + '<div class="sharedlab">shared</div>'
+        + '<div class="ent" data-b="' + b.moe + '">—<small>entropy</small></div>';
+      h += stage("", "Block " + b.n, body, "MLA <em>8</em> heads<br><em>32</em> + 1 experts<br>top-<em>2</em>", 92);
+    }
+    h += link();
+    h += stage("io", "Heads", '<div class="solid" style="opacity:.5"></div>',
+      "LM head <em>32,000</em><br>MTP depth <em>1</em><br>tied embedding", 108);
+    $("machine").innerHTML = h;
+
+    function link() { return '<div class="link"></div>'; }
+    function stage(cls, label, body, meta, w) {
+      return '<div class="stage ' + cls + '" style="width:' + w + 'px">'
+        + '<span class="eng">' + label + '</span>'
+        + '<div class="body">' + body + '<div class="meta">' + meta + '</div></div></div>';
+    }
+  })();
+  const CELLS = [[], [], [], [], []];
+  document.querySelectorAll("#machine .cell").forEach(c => CELLS[+c.dataset.b][+c.dataset.e] = c);
+  const ENTS = Array.from(document.querySelectorAll("#machine .ent"));
+
+  /* ---------------- readouts ---------------- */
+  const RO = [
+    ["Step", t => t.step.toLocaleString(), () => "of 64,000"],
+    ["Tokens seen", t => (t.tokens / 1e6).toFixed(1) + "M", t => (t.tokens / 115241113).toFixed(2) + " epochs"],
+    ["Validation loss", t => fmt(t.vmain, 4), () => "nats / token"],
+    ["Training loss", t => t.full ? fmt(t.full.main, 4) : null, () => "one batch"],
+    ["MTP / main", t => t.ratio ? fmt(t.ratio, 4) : null, t => t.full ? "weight " + t.full.w.toFixed(1) : ""],
+    ["Grad norm", t => t.full ? fmt(t.full.gn, 3) : null, () => "clip 1.0"],
+    ["Learning rate", t => t.full ? t.full.lr.toExponential(2) : null, () => "cosine"],
+    ["Lowest entropy", t => fmt(t.minEnt, 4), () => "of 5 blocks"]
+  ];
+  $("readouts").innerHTML = RO.map((r, i) =>
+    '<div class="ro"><span class="eng">' + r[0] + '</span>'
+    + '<div class="v" id="ro' + i + '">—</div><div class="u" id="ru' + i + '"></div></div>').join("");
+
+  /* ---------------- choice field ---------------- */
+  $("field").innerHTML = Array.from({ length: 130 }, (_, i) => '<div class="tick" data-i="' + i + '"></div>').join("");
+  const TICKS = Array.from(document.querySelectorAll("#field .tick"));
+
+  /* ---------------- flight recorder ---------------- */
+  const BANDS = [
+    ["Validation loss", t => t.vmain, 4, "var(--s1)"],
+    ["Training loss", t => t.full && t.full.main, 4, "var(--s2)"],
+    ["MTP / main loss", t => t.ratio, 4, "var(--s1)"],
+    ["Gradient norm", t => t.full && t.full.gn, 3, "var(--s2)"],
+    ["Learning rate", t => t.full && t.full.lr, 6, "var(--s1)"],
+    ["Lowest block entropy", t => t.minEnt, 4, "var(--s2)"],
+    ["Decode speed, tok/s", t => t.full && t.full.tps, 1, "var(--s2)"]
+  ];
+  (function buildBands() {
+    $("bands").innerHTML = BANDS.map((b, i) =>
+      '<div class="band"><span class="eng">' + b[0] + '</span>'
+      + '<div class="bplot" id="bp' + i + '"></div>'
+      + '<div class="now" id="bn' + i + '">—</div></div>').join("")
+      + '<div class="head" id="head"></div>';
+  })();
+
+  function drawBands() {
+    BANDS.forEach((b, i) => {
+      const host = $("bp" + i); if (!host) return;
+      const W = Math.max(160, host.clientWidth), H = 40, P = 7;
+      const pts = T.map(t => [t.tokens, b[1](t)]).filter(p => p[1] != null && p[1] === p[1]);
+      if (!pts.length) return;
+      const vs = pts.map(p => p[1]);
+      let lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+      if (hi === lo) { hi = lo + 1; }
+      const sx = v => (v - X0) / (X1 - X0) * W;
+      const sy = v => H - P - (v - lo) / (hi - lo) * (H - 2 * P);
+      const d = pts.map((p, k) => (k ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(p[1]).toFixed(1)).join(" ");
+      const area = d + " L" + sx(pts[pts.length - 1][0]).toFixed(1) + " " + H + " L" + sx(pts[0][0]).toFixed(1) + " " + H + " Z";
+      let s = '<svg width="' + W + '" height="' + H + '" aria-hidden="true">';
+      s += '<path d="' + area + '" fill="' + b[3] + '" opacity=".12"/>';
+      s += '<path d="' + d + '" fill="none" stroke="' + b[3] + '" stroke-width="1.5" stroke-linejoin="round"/>';
+      for (const p of pts) s += '<circle cx="' + sx(p[0]).toFixed(1) + '" cy="' + sy(p[1]).toFixed(1) + '" r="1.6" fill="' + b[3] + '"/>';
+      s += "</svg>";
+      host.innerHTML = s;
+    });
+  }
+
+  /* ---------------- routing record ---------------- */
+  (function buildRecord() {
+    const R = D.records;
+    let h = "";
+    for (let L = 0; L < 5; L++) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of R) for (const v of r.loads[L]) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      h += '<div class="blockrec"><div class="brhead"><span class="eng">Block 0' + (L + 2) + '</span>'
+        + '<span class="r">' + lo + " to " + hi + ' tokens on one expert</span></div><div class="rows">';
+      R.forEach((r, k) => {
+        let cs = "";
+        for (let e = 0; e < 32; e++)
+          cs += '<div style="background:' + loadCol(r.loads[L][e]) + '" data-t="Block 0' + (L + 2)
+            + " · expert " + e + " · step " + r.step.toLocaleString()
+            + "|" + r.loads[L][e] + ' tokens, balanced 224"></div>';
+        h += '<div class="rrow" data-i="' + (k + 3) + '"><span class="st">' + (r.step / 1000)
+          + 'k</span><div class="cells">' + cs + "</div></div>";
+      });
+      h += "</div></div>";
+    }
+    $("record").innerHTML = h;
+    $("ramp").style.background = "linear-gradient(90deg," + loadCol(56) + "," + loadCol(224) + "," + loadCol(896) + ")";
+    document.querySelectorAll(".rrow").forEach(r =>
+      r.addEventListener("click", () => go(+r.dataset.i)));
+  })();
+
+  /* ---------------- ledger ---------------- */
+  (function buildLedger() {
+    const cols = ["step", "tokens", "val loss", "val ppl", "train loss", "mtp loss", "mtp/main",
+      "mtp w", "balance", "grad norm", "lr", "min entropy", "peak expert", "idle expert", "tok/s"];
+    let h = "<table><thead><tr>" + cols.map(c => "<th>" + c + "</th>").join("") + "</tr></thead><tbody>";
+    T.forEach((t, i) => {
+      const r = t.full, o = ' class="o"';
+      const cell = v => v == null ? "<td" + o + ">—</td>" : "<td>" + v + "</td>";
+      h += '<tr data-i="' + i + '"><td class="k">' + t.step.toLocaleString() + "</td>"
+        + '<td' + o + '>' + (t.tokens / 1e6).toFixed(1) + "M</td>"
+        + "<td>" + fmt(t.vmain, 4) + "</td><td>" + fmt(t.vppl, 2) + "</td>"
+        + cell(r && fmt(r.main, 4)) + cell(r && fmt(r.mtp, 4))
+        + cell(t.ratio && fmt(t.ratio, 4)) + cell(r && r.w.toFixed(1))
+        + cell(r && r.bal.toExponential(2)) + cell(r && fmt(r.gn, 3))
+        + cell(r && r.lr.toExponential(2)) + "<td>" + fmt(t.minEnt, 4) + "</td>"
+        + cell(r && Math.max.apply(null, r.loads.map(l => Math.max.apply(null, l))))
+        + cell(r && Math.min.apply(null, r.loads.map(l => Math.min.apply(null, l))))
+        + cell(r && fmt(r.tps, 1)) + "</tr>";
+    });
+    $("ledger").innerHTML = h + "</tbody></table>";
+    document.querySelectorAll("#ledger tbody tr").forEach(tr =>
+      tr.addEventListener("click", () => go(+tr.dataset.i)));
+  })();
+
+  /* ---------------- console track ---------------- */
+  const track = $("track");
+  function drawTrack() {
+    const W = Math.max(200, track.clientWidth), H = track.clientWidth < 420 ? 50 : 62, P = 9;
+    const lo = 38, hi = 150;
+    const sx = v => (v - X0) / (X1 - X0) * W;
+    const sy = v => H - P - (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * (H - 2 * P);
+    let s = '<svg width="' + W + '" height="' + H + '" aria-hidden="true">';
+    for (const g of [50, 100]) {
+      s += '<line x1="0" x2="' + W + '" y1="' + sy(g).toFixed(1) + '" y2="' + sy(g).toFixed(1)
+        + '" stroke="var(--rule)" stroke-width="1"/>';
+      s += '<text x="2" y="' + (sy(g) - 3).toFixed(1) + '" fill="var(--ink4)" font-size="8" font-family="' + "monospace" + '">' + g + "</text>";
+    }
+    const d = T.map((t, i) => (i ? "L" : "M") + sx(t.tokens).toFixed(1) + " " + sy(t.vppl).toFixed(1)).join(" ");
+    s += '<path d="' + d + " L" + sx(T[N - 1].tokens).toFixed(1) + " " + H + " L" + sx(T[0].tokens).toFixed(1) + " " + H
+      + ' Z" fill="var(--s1)" opacity=".10"/>';
+    s += '<path d="' + d + '" fill="none" stroke="var(--s1)" stroke-width="1.75" stroke-linejoin="round"/>';
+    T.forEach((t, i) => {
+      const x = sx(t.tokens).toFixed(1), y = sy(t.vppl).toFixed(1);
+      s += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - 6) + '" y2="' + H + '" stroke="'
+        + (t.full ? "var(--rule2)" : "var(--ink4)") + '" stroke-width="1"/>';
+      s += '<circle cx="' + x + '" cy="' + y + '" r="2.4" fill="'
+        + (t.full ? "var(--s1)" : "var(--plate)") + '" stroke="var(--s1)" stroke-width="1.2"/>';
+    });
+    const px = sx(T[idx].tokens).toFixed(1);
+    s += '<line x1="' + px + '" x2="' + px + '" y1="0" y2="' + H + '" stroke="var(--live)" stroke-width="1"/>';
+    s += '<circle cx="' + px + '" cy="' + sy(T[idx].vppl).toFixed(1) + '" r="4" fill="var(--live)"'
+      + ' stroke="var(--plate)" stroke-width="1.5"/>';
+    s += "</svg>";
+    track.innerHTML = s;
+  }
+  function nearest(clientX) {
+    const b = track.getBoundingClientRect();
+    const v = X0 + (clientX - b.left) / b.width * (X1 - X0);
+    let best = 0, bd = Infinity;
+    T.forEach((t, i) => { const d = Math.abs(t.tokens - v); if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  let dragging = false;
+  track.addEventListener("pointerdown", e => {
+    dragging = true; track.setPointerCapture(e.pointerId); stop(); go(nearest(e.clientX));
+  });
+  track.addEventListener("pointermove", e => { if (dragging) go(nearest(e.clientX)); });
+  track.addEventListener("pointerup", () => { dragging = false; });
+  track.addEventListener("pointercancel", () => { dragging = false; });
+  track.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") { stop(); go(idx + 1); e.preventDefault(); }
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { stop(); go(idx - 1); e.preventDefault(); }
+    if (e.key === "Home") { stop(); go(0); e.preventDefault(); }
+    if (e.key === "End") { stop(); go(N - 1); e.preventDefault(); }
+  });
+
+  /* ---------------- play ---------------- */
+  const PLAY = "M2 1l9 5-9 5z", PAUSE = "M2 1h3v10H2zM7 1h3v10H7z";
+  function stop() { playing = false; clearInterval(timer); $("picon").setAttribute("d", PLAY); }
+  $("play").addEventListener("click", () => {
+    if (playing) return stop();
+    playing = true; $("picon").setAttribute("d", PAUSE);
+    if (idx >= N - 1) go(0);
+    timer = setInterval(() => { idx >= N - 1 ? stop() : go(idx + 1); }, reduce ? 1400 : 900);
+  });
+
+  /* ---------------- the one update ---------------- */
+  function go(i) {
+    idx = Math.max(0, Math.min(N - 1, i));
+    const t = T[idx], r = t.full;
+
+    $("ppl").textContent = fmt(t.vppl, 2);
+    $("pplcap").innerHTML = idx === 0
+      ? "First checkpoint on record, at <b>14.3M</b> tokens."
+      : "Down <b>" + ((1 - t.vppl / T[0].vppl) * 100).toFixed(1) + "%</b> from the first checkpoint. "
+      // word-level perplexity is ppl ^ fertility, not ppl * fertility: both are
+      // exponentials of a per-unit loss, so the fertility scales the loss.
+      + "Word-level equivalent <b>" + Math.pow(t.vppl, 1.13).toFixed(1)
+      + "</b> at the measured fertility of 1.13 tokens per word.";
+
+    RO.forEach((row, k) => {
+      const v = row[1](t), el = $("ro" + k);
+      el.textContent = v == null ? "—" : v;
+      el.className = "v" + (v == null ? " off" : "");
+      $("ru" + k).textContent = v == null ? "not recorded" : (row[2](t) || "");
+    });
+
+    for (let L = 0; L < 5; L++) {
+      for (let e = 0; e < 32; e++) {
+        const c = CELLS[L][e];
+        if (!r) { c.className = "cell dead"; c.style.background = ""; c.removeAttribute("data-t"); }
+        else {
+          c.className = "cell"; c.style.background = loadCol(r.loads[L][e]);
+          c.dataset.t = "Block 0" + (L + 2) + " · expert " + e + "|" + r.loads[L][e] + " tokens, balanced 224";
+        }
+      }
+      ENTS[L].innerHTML = (r ? fmt(r.ent[L], 4) : "—") + "<small>entropy</small>";
+      ENTS[L].className = "ent" + (r ? "" : " off");
+    }
+
+    const voice = $("voice");
+    if (!r) voice.innerHTML = '<span class="none">No sample was recorded at this checkpoint. '
+      + 'The metrics for steps 4,000 to 12,000 were lost with the terminal buffer of the session that produced them.</span>';
+    else {
+      let txt = r.sample.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const m = txt.match(/((?:the top of |two @-@ story , |a stone wall (?:, )?){3,})/i);
+      if (m) txt = txt.replace(m[1], '<span class="loop">' + m[1] + "</span>");
+      voice.innerHTML = '<span class="p">The cat sat on</span>' + txt;
+    }
+
+    const lit = Math.round(t.vppl);
+    TICKS.forEach((el, k) => el.className = "tick" + (k < lit ? " lit" : ""));
+    $("fieldcap").innerHTML = "At step <b>" + t.step.toLocaleString() + "</b> the model is as uncertain "
+      + "as if it were picking uniformly from <b>" + lit + "</b> continuations. Each lit bar is one of them. "
+      + (idx === N - 1 ? "It began the record picking from 130."
+        : "By the end of the run there are " + Math.round(T[N - 1].vppl) + ".");
+
+    BANDS.forEach((b, k) => {
+      const v = b[1](t);
+      const el = $("bn" + k);
+      el.textContent = v == null ? "—" : (b[0] === "Learning rate" ? v.toExponential(2) : fmt(v, b[2]));
+      el.style.color = v == null ? "var(--ink4)" : "var(--live)";
+    });
+    const bands = $("bands"), plot = $("bp0");
+    if (plot) {
+      const off = plot.getBoundingClientRect().left - bands.getBoundingClientRect().left;
+      $("head").style.left = (off + (t.tokens - X0) / (X1 - X0) * plot.clientWidth) + "px";
+    }
+
+    document.querySelectorAll(".rrow").forEach(el =>
+      el.classList.toggle("on", +el.dataset.i === idx));
+    document.querySelectorAll("#ledger tbody tr").forEach(el =>
+      el.classList.toggle("on", +el.dataset.i === idx));
+
+    $("cstep").textContent = "step " + t.step.toLocaleString();
+    $("ctok").textContent = (t.tokens / 1e6).toFixed(1) + "M tokens";
+    track.setAttribute("aria-valuenow", idx);
+    track.setAttribute("aria-valuetext", "step " + t.step.toLocaleString() + ", perplexity " + fmt(t.vppl, 2));
+    drawTrack();
+  }
+
+  /* ---------------- tooltip ---------------- */
+  const tip = document.createElement("div");
+  tip.style.cssText = "position:fixed;z-index:40;pointer-events:none;opacity:0;transition:opacity .1s;"
+    + "background:var(--well);border:1px solid var(--rule2);padding:7px 10px;font-family:var(--mono);"
+    + "font-size:10.5px;line-height:1.6;color:var(--ink);white-space:nowrap";
+  document.body.appendChild(tip);
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest("[data-t]"); if (!el) return;
+    const p = el.dataset.t.split("|");
+    tip.innerHTML = '<span style="color:var(--ink3)">' + p[0] + "</span><br>" + p[1];
+    tip.style.opacity = 1;
+  });
+  document.addEventListener("mousemove", e => {
+    if (tip.style.opacity !== "1") return;
+    if (!e.target.closest("[data-t]")) { tip.style.opacity = 0; return; }
+    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 10, e.clientX + 14) + "px";
+    tip.style.top = Math.max(8, e.clientY - 40) + "px";
+  });
+
+  /* ---------------- boot ---------------- */
+  function relayout() { drawBands(); drawTrack(); go(idx); }
+  drawBands(); go(N - 1);
+  let rt = null;
+  addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(relayout, 120); });
+  $("ledgeridx").textContent = N + " checkpoints · " + D.records.length + " fully instrumented";
+})();
+</script>
