@@ -67,7 +67,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Restart the shell, then clone and set up:
 
 ```bash
-git clone https://github.com/syedazeez337/deepseek-v3-compact-proxy.git
+git clone https://github.com/AI-Yatra/deepseek-v3-compact-proxy.git
 cd deepseek-v3-compact-proxy
 uv sync
 ```

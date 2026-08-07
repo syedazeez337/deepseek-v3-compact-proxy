@@ -17,7 +17,7 @@ tags:
 
 # DeepSeek-V3 Compact Proxy — Checkpoints
 
-Trained checkpoints for [deepseek-v3-compact-proxy](https://github.com/syedazeez337/deepseek-v3-compact-proxy),
+Trained checkpoints for [deepseek-v3-compact-proxy](https://github.com/AI-Yatra/deepseek-v3-compact-proxy),
 a mechanism-faithful proxy for DeepSeek-V3's architecture (Multi-head Latent Attention, DeepSeekMoE, Multi-Token
 Prediction) — not a reproduction of the 671B model. Every checkpoint here corresponds to a specific, documented
 experiment ("gate") in that repository; each gate's specification, implementation, tests, measured results, and
