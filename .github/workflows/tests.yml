@@ -7,23 +7,30 @@ on:
   workflow_dispatch:
 
 jobs:
+  # macOS only, and not for the usual reasons. pyproject.toml scopes torch to
+  # the pytorch-cu130 index on Windows and Linux, so a Linux runner downloads
+  # the whole CUDA stack (15 nvidia-* wheels) to run tests that skip without a
+  # GPU. Measured on the first real run of this workflow:
+  #
+  #   macos-latest    2m35s
+  #   ubuntu-latest  28m24s, against a 30-minute timeout
+  #
+  # Ubuntu passed with 96 seconds to spare, which is luck rather than margin.
+  # There is no cheap fix on Linux: PyPI's default linux torch wheel is itself
+  # the CUDA build, so `--no-sources` and `--torch-backend cpu` both still
+  # resolve the full nvidia set, and pinning a CPU index in CI would mean
+  # testing a dependency set no user ever installs.
+  #
+  # macOS is the one platform pyproject already routes to a CPU torch, and
+  # these tests are pure CPU logic, so it gives the same coverage in a
+  # eleventh of the time.
   pytest:
-    strategy:
-      fail-fast: false
-      matrix:
-        # macOS is the cheap runner here, and not for the usual reasons:
-        # pyproject.toml scopes torch to the pytorch-cu130 index on Windows and
-        # Linux only, so a Linux runner downloads the whole CUDA stack (15
-        # nvidia-* wheels, several GB) to run tests that skip without a GPU.
-        # macOS resolves torch from PyPI instead and pulls zero nvidia packages.
-        # Measured with: uv pip compile --python-platform {linux,macos} ...
-        os: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    runs-on: macos-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock

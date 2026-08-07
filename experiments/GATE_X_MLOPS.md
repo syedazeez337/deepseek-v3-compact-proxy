@@ -127,8 +127,22 @@ bit_identical: true
 the `pytorch-cu130` index on Windows and Linux. A Linux runner therefore downloads the entire CUDA stack to run
 tests that skip without a GPU. `uv --torch-backend cpu` does not override this; the `[tool.uv.sources]` pin wins.
 
-`--python-platform macos` resolves zero `nvidia-*` wheels, because that marker routes macOS to PyPI. The workflow
-runs both, with macOS as the cheap path. No change to `pyproject.toml` was needed.
+`--python-platform macos` resolves zero `nvidia-*` wheels, because that marker routes macOS to PyPI. No change to
+`pyproject.toml` was needed.
+
+The first real run of the workflow, on 2026-08-07, measured the cost rather than predicting it:
+
+| runner | duration |
+|---|---:|
+| `macos-latest` | 2m35s |
+| `ubuntu-latest` | 28m24s |
+
+Both passed. Ubuntu spent essentially all of that in `uv sync --frozen` and finished 96 seconds inside the
+30-minute job timeout, which is luck and not margin: one slow registry response turns a green build red for a
+reason unrelated to the code. Linux has no cheap fix, because PyPI's default linux torch wheel is itself the
+CUDA build, so `--no-sources` and `--torch-backend cpu` both still resolve the full nvidia set, and pinning a CPU
+index in CI would test a dependency set no user installs. Ubuntu was dropped from the matrix; macOS is the only
+platform `pyproject.toml` already routes to a CPU torch, and these tests are pure CPU logic.
 
 ## What this cost
 
